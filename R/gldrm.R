@@ -142,7 +142,7 @@
 #' fit2
 #'
 #' @export
-gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, samprobs= NULL,
+gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL,
                   gldrmControl=gldrm.control(), thetaControl=theta.control(),
                   betaControl=beta.control(), f0Control=f0.control())
 {
