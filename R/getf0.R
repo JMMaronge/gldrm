@@ -93,7 +93,9 @@ getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thSta
 	f0 <- f0Start  # assumes sum(f0Start) = 1 and sum(f0Start * spt) = mu0
 	th <- thStart
 	llik <- th$llik
-	score.log <- NULL	
+	score.log <- NULL
+    conv <- FALSE
+    iter <- 0	
     while (!conv && iter<maxiter) {
         iter <- iter + 1
 
