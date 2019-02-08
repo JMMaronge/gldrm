@@ -78,39 +78,248 @@ f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2)
 #' }
 #'
 #' @keywords internal
-getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thStart,
-                  thetaControl=theta.control(), f0Control=f0.control(), trace=FALSE)
+getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thStart, 
+	thetaControl=theta.control(), f0Control=f0.control(), trace=FALSE)
 {
-    ## Extract theta control arguments
-    if (class(f0Control) != "f0Control")
-        stop("f0Control must be an object of class f0Control returned by f0Control() function.")
-    eps <- f0Control$eps
-    maxiter <- f0Control$maxiter
-    maxhalf <- f0Control$maxhalf
-    maxlogstep <- f0Control$maxlogstep
+	## Extract theta control arguments
+	if (class(f0Control) != "f0Control")
+    stop("f0Control must be an object of class f0Control returned by f0Control() function.")
+	eps <- f0Control$eps
+	maxiter <- f0Control$maxiter
+	maxhalf <- f0Control$maxhalf
+	maxlogstep <- f0Control$maxlogstep
 
-    f0 <- f0Start  # assumes sum(f0Start) = 1 and sum(f0Start * spt) = mu0
-    th <- thStart
-    llik <- th$llik
-    score.log <- NULL
-    if (is.null(sampprobs)) {
-        smm <- outer(spt, mu, "-")
-        ymm <- y - mu
-        yeqmu <- which(abs(ymm) < 1e-15)
-    }
-
-    conv <- FALSE
-    iter <- 0
+	f0 <- f0Start  # assumes sum(f0Start) = 1 and sum(f0Start * spt) = mu0
+	th <- thStart
+	llik <- th$llik
+	score.log <- NULL	
     while (!conv && iter<maxiter) {
         iter <- iter + 1
 
         # Score calculation
         score.logOld <- score.log
-        if (!is.null(sampprobs)) {
-            smm <- outer(spt, th$bPrimeSW, "-")
-            ymm <- y - th$bPrimeSW
+		
+		if (is.null(sampprobs)) {
+	        smm <- outer(spt, mu, "-")
+	        ymm <- y - mu
+	        yeqmu <- which(abs(ymm) < 1e-15)
+			
+	        fTiltSWSums <- rowSums(th$fTiltSW)
+	        smmfTiltSW <- smm * th$fTiltSW
+	        ystd <- ymm / th$bPrime2SW
+	        ystd[yeqmu] <- 0  # prevent 0/0
+	        score.logT1 <- sptFreq
+	        score.logT2 <- fTiltSWSums
+	        score.logT3 <- c(smmfTiltSW %*% ystd)
+	        score.log <- score.logT1 - score.logT2 - score.logT3	
+			
+	        if (iter == 1) {
+	            d1 <- min(fTiltSWSums)  # max inverse diagonal of first information term, on log scale
+	            d2 <- max(abs(score.log)) / maxlogstep
+	            d <- max(d1, d2)
+	            infoinvBFGS.log <- diag(1/d, nrow=length(f0))
+	        } else {
+	            scorestep.log <- score.log - score.logOld
+	            f0step.log <- log(f0) - log(f0old)
+	            sy <- sum(f0step.log * scorestep.log)
+	            yiy <- c(crossprod(scorestep.log, infoinvBFGS.log %*% scorestep.log))
+	            iys <- tcrossprod(infoinvBFGS.log %*% scorestep.log, f0step.log)
+	            infoinvBFGS.log <- infoinvBFGS.log + ((yiy - sy) / sy^2) * tcrossprod(f0step.log) - (1 / sy) * (iys + t(iys))
+	        }
+	        logstep <- c(infoinvBFGS.log %*% score.log)
+
+	        # Cap log(f0) step size
+	        logstep.max <- max(abs(logstep))
+	        if (logstep.max > maxlogstep)
+	            logstep <- logstep * (maxlogstep / logstep.max)
+
+	        # Save values from previous iteration
+	        f0old <- f0
+	        thold <- th
+	        llikold <- llik
+
+	        # Take update step
+	        f0 <- exp(log(f0) + logstep)
+	        # Scale and tilt f0
+	        f0 <- f0 / sum(f0)
+	        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	                       thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
+	        # Update theta and likelihood
+	        thold <- th
+	        llikold <- llik
+	        th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	                       thetaStart=th$theta, thetaControl=thetaControl)
+	        llik <- th$llik
+	        conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
+
+	        # If log-likelihood does not improve, change step direction to be along gradient
+	        # Take half steps until likelihood improves
+	        # Continue taking half steps until log likelihood no longer improves
+	        nhalf <- 0
+	        if (llik<llikold) {
+	            llikprev <- -Inf
+	            while ((llik<llikold || llik>llikprev) && nhalf<maxhalf) {
+	                nhalf <- nhalf + 1
+
+	                # Set previous values
+	                llikprev <- llik
+	                thprev <- th
+	                f0prev <- f0
+	                infoinvBFGS.logprev <- infoinvBFGS.log
+
+	                f0 <- exp((log(f0) + log(f0old)) / 2)
+	                f0 <- f0 / sum(f0)
+	                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	                               thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
+	                th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	                               thetaStart=th$theta, thetaControl=thetaControl)
+	                llik <- th$llik
+	                infoinvBFGS.log <- infoinvBFGS.log / 2
+	            }
+
+	            if (llik < llikprev) {
+	                nhalf <- nhalf - 1
+	                llik <- llikprev
+	                th <- thprev
+	                f0 <- f0prev
+	                infoinvBFGS.log <- infoinvBFGS.logprev
+	            }
+
+	            conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
+	        }
+
+	        if (llik < llikold) {
+	            f0 <- f0old
+	            th <- thold
+	            llik <- llikold
+	            conv <- TRUE
+	        }
+
+	        if (trace) {
+	            printout <- paste0("iter ", iter, ": llik=", llik)
+	            if (nhalf > 0)
+	                printout <- paste0(printout, "; ", nhalf, " half steps")
+	            cat(printout, "\n")
+	        }
+		} else { # code added for ODS by JMM 02/07/19
+            #smm <- outer(spt, th$bPrimeSW, "-") # this isn't right, need (s_m-\mu_i) NOT (s_m - \mu_i^*)
+			smm <- outer(spt, th$bPrime, "-") # corrected from MW's original code
+            ymm <- y - th$bPrimeSW # this is (y_i - \mu_i^*)
             yeqmu <- which(abs(ymm) < 1e-15)
-        }
+			
+	        fTiltSWSums <- rowSums(th$fTiltSW)
+	        smmfTiltSW <- smm * th$fTiltSW
+	        fTiltSums <- rowSums(th$fTilt)
+	        smmfTilt <- smm * th$fTilt
+	        #ystd <- ymm / th$bPrime2SW # this calculates (y_i - \mu_i^*)/b^*''(\theta_i), not in the score function under ODS
+			ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
+	        ystd[yeqmu] <- 0  # prevent 0/0
+	        score.logT1 <- sptFreq
+	        score.logT2 <- fTiltSWSums
+	        #score.logT3 <- c(smmfTiltSW %*% ystd) # this isn't right, using ODS versions, actual score uses SRS versions (for ODS score)
+			score.logT3 <- c(smmfTilt %*% ystd)
+	        score.log <- score.logT1 - score.logT2 - score.logT3
+			
+	        if (iter == 1) {
+	            d1 <- min(fTiltSWSums)  # max inverse diagonal of first information term, on log scale
+	            d2 <- max(abs(score.log)) / maxlogstep
+	            d <- max(d1, d2)
+	            infoinvBFGS.log <- diag(1/d, nrow=length(f0))
+	        } else {
+	            scorestep.log <- score.log - score.logOld
+	            f0step.log <- log(f0) - log(f0old)
+	            sy <- sum(f0step.log * scorestep.log)
+	            yiy <- c(crossprod(scorestep.log, infoinvBFGS.log %*% scorestep.log))
+	            iys <- tcrossprod(infoinvBFGS.log %*% scorestep.log, f0step.log)
+	            infoinvBFGS.log <- infoinvBFGS.log + ((yiy - sy) / sy^2) * tcrossprod(f0step.log) - (1 / sy) * (iys + t(iys))
+	        }
+	        logstep <- c(infoinvBFGS.log %*% score.log)
+
+	        # Cap log(f0) step size
+	        logstep.max <- max(abs(logstep))
+	        if (logstep.max > maxlogstep)
+	            logstep <- logstep * (maxlogstep / logstep.max)
+
+	        # Save values from previous iteration
+	        f0old <- f0
+	        thold <- th
+	        llikold <- llik
+
+	        # Take update step
+	        f0 <- exp(log(f0) + logstep)
+	        # Scale and tilt f0
+	        f0 <- f0 / sum(f0)
+	        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	                       thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
+	        # Update theta and likelihood
+	        thold <- th
+	        llikold <- llik
+	        th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	                       thetaStart=th$theta, thetaControl=thetaControl)
+	        llik <- th$llik
+	        conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
+
+	        # If log-likelihood does not improve, change step direction to be along gradient
+	        # Take half steps until likelihood improves
+	        # Continue taking half steps until log likelihood no longer improves
+	        nhalf <- 0
+	        if (llik<llikold) {
+	            llikprev <- -Inf
+	            while ((llik<llikold || llik>llikprev) && nhalf<maxhalf) {
+	                nhalf <- nhalf + 1
+
+	                # Set previous values
+	                llikprev <- llik
+	                thprev <- th
+	                f0prev <- f0
+	                infoinvBFGS.logprev <- infoinvBFGS.log
+
+	                f0 <- exp((log(f0) + log(f0old)) / 2)
+	                f0 <- f0 / sum(f0)
+	                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	                               thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
+	                th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	                               thetaStart=th$theta, thetaControl=thetaControl)
+	                llik <- th$llik
+	                infoinvBFGS.log <- infoinvBFGS.log / 2
+	            }
+
+	            if (llik < llikprev) {
+	                nhalf <- nhalf - 1
+	                llik <- llikprev
+	                th <- thprev
+	                f0 <- f0prev
+	                infoinvBFGS.log <- infoinvBFGS.logprev
+	            }
+
+	            conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
+	        }
+
+	        if (llik < llikold) {
+	            f0 <- f0old
+	            th <- thold
+	            llik <- llikold
+	            conv <- TRUE
+	        }
+
+	        if (trace) {
+	            printout <- paste0("iter ", iter, ": llik=", llik)
+	            if (nhalf > 0)
+	                printout <- paste0(printout, "; ", nhalf, " half steps")
+	            cat(printout, "\n")
+	        }
+			
+			
+		}
+		
+	}			  
+				  
+    # Final score calculation
+    if (is.null(sampprobs)) {
+        smm <- outer(spt, mu, "-")
+        ymm <- y - mu
+        yeqmu <- which(abs(ymm) < 1e-15)
+		
         fTiltSWSums <- rowSums(th$fTiltSW)
         smmfTiltSW <- smm * th$fTiltSW
         ystd <- ymm / th$bPrime2SW
@@ -118,120 +327,57 @@ getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thSta
         score.logT1 <- sptFreq
         score.logT2 <- fTiltSWSums
         score.logT3 <- c(smmfTiltSW %*% ystd)
-        score.log <- score.logT1 - score.logT2 - score.logT3
-
-        # Inverse info, score step, and f0 step are on the log scale (score is not)
-        if (iter == 1) {
-            d1 <- min(fTiltSWSums)  # max inverse diagonal of first information term, on log scale
-            d2 <- max(abs(score.log)) / maxlogstep
-            d <- max(d1, d2)
-            infoinvBFGS.log <- diag(1/d, nrow=length(f0))
-        } else {
-            scorestep.log <- score.log - score.logOld
-            f0step.log <- log(f0) - log(f0old)
-            sy <- sum(f0step.log * scorestep.log)
-            yiy <- c(crossprod(scorestep.log, infoinvBFGS.log %*% scorestep.log))
-            iys <- tcrossprod(infoinvBFGS.log %*% scorestep.log, f0step.log)
-            infoinvBFGS.log <- infoinvBFGS.log + ((yiy - sy) / sy^2) * tcrossprod(f0step.log) - (1 / sy) * (iys + t(iys))
-        }
-        logstep <- c(infoinvBFGS.log %*% score.log)
-
-        # Cap log(f0) step size
-        logstep.max <- max(abs(logstep))
-        if (logstep.max > maxlogstep)
-            logstep <- logstep * (maxlogstep / logstep.max)
-
-        # Save values from previous iteration
-        f0old <- f0
-        thold <- th
-        llikold <- llik
-
-        # Take update step
-        f0 <- exp(log(f0) + logstep)
-        # Scale and tilt f0
-        f0 <- f0 / sum(f0)
-        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
-                       thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
-        # Update theta and likelihood
-        thold <- th
-        llikold <- llik
-        th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
-                       thetaStart=th$theta, thetaControl=thetaControl)
-        llik <- th$llik
-        conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
-
-        # If log-likelihood does not improve, change step direction to be along gradient
-        # Take half steps until likelihood improves
-        # Continue taking half steps until log likelihood no longer improves
-        nhalf <- 0
-        if (llik<llikold) {
-            llikprev <- -Inf
-            while ((llik<llikold || llik>llikprev) && nhalf<maxhalf) {
-                nhalf <- nhalf + 1
-
-                # Set previous values
-                llikprev <- llik
-                thprev <- th
-                f0prev <- f0
-                infoinvBFGS.logprev <- infoinvBFGS.log
-
-                f0 <- exp((log(f0) + log(f0old)) / 2)
-                f0 <- f0 / sum(f0)
-                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
-                               thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
-                th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
-                               thetaStart=th$theta, thetaControl=thetaControl)
-                llik <- th$llik
-                infoinvBFGS.log <- infoinvBFGS.log / 2
-            }
-
-            if (llik < llikprev) {
-                nhalf <- nhalf - 1
-                llik <- llikprev
-                th <- thprev
-                f0 <- f0prev
-                infoinvBFGS.log <- infoinvBFGS.logprev
-            }
-
-            conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
-        }
-
-        if (llik < llikold) {
-            f0 <- f0old
-            th <- thold
-            llik <- llikold
-            conv <- TRUE
-        }
-
-        if (trace) {
-            printout <- paste0("iter ", iter, ": llik=", llik)
-            if (nhalf > 0)
-                printout <- paste0(printout, "; ", nhalf, " half steps")
-            cat(printout, "\n")
-        }
+        score.log <- score.logT1 - score.logT2 - score.logT3	
+    } else{#smm <- outer(spt, th$bPrimeSW, "-") # this isn't right, need (s_m-\mu_i) NOT (s_m - \mu_i^*)
+			smm <- outer(spt, th$bPrime, "-") # corrected from MW's original code
+            ymm <- y - th$bPrimeSW # this is (y_i - \mu_i^*)
+            yeqmu <- which(abs(ymm) < 1e-15)
+			
+	        fTiltSWSums <- rowSums(th$fTiltSW)
+	        smmfTiltSW <- smm * th$fTiltSW
+	        fTiltSums <- rowSums(th$fTilt)
+	        smmfTilt <- smm * th$fTilt
+	        #ystd <- ymm / th$bPrime2SW # this calculates (y_i - \mu_i^*)/b^*''(\theta_i), not in the score function under ODS
+			ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
+	        ystd[yeqmu] <- 0  # prevent 0/0
+	        score.logT1 <- sptFreq
+	        score.logT2 <- fTiltSWSums
+	        #score.logT3 <- c(smmfTiltSW %*% ystd) # this isn't right, using ODS versions, actual score uses SRS versions (for ODS score)
+			score.logT3 <- c(smmfTilt %*% ystd)
+	        score.log <- score.logT1 - score.logT2 - score.logT3		
     }
-
-    # Final score calculation
-    if (!is.null(sampprobs)) {
-        smm <- outer(spt, th$bPrimeSW, "-")
-        ymm <- y - th$bPrimeSW
-        yeqmu <- which(abs(ymm) < 1e-15)
-    }
-    fTiltSWSums <- rowSums(th$fTiltSW)
-    smmfTiltSW <- smm * th$fTiltSW
-    ystd <- ymm / th$bPrime2SW
-    ystd[yeqmu] <- 0  # prevent 0/0
-    score.logT1 <- sptFreq
-    score.logT2 <- fTiltSWSums
-    score.logT3 <- c(smmfTiltSW %*% ystd)
-    score.log <- score.logT1 - score.logT2 - score.logT3
 
     # Final info calculation
-    info.logT1 <- diag(fTiltSWSums)
-    info.logT2 <- tcrossprod(th$fTiltSW)
-    info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(ystd, each=nrow(smmfTiltSW)))
-    info.log <- info.logT1 - info.logT2 - info.logT3
-
+	if (is.null(sampprobs)) {
+    	info.logT1 <- diag(fTiltSWSums)
+    	info.logT2 <- tcrossprod(th$fTiltSW)
+		info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(1/th$bPrime2, each=nrow(smmfTiltSW)))
+    	#info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(ystd, each=nrow(smmfTiltSW))) #I don't think this is right -- ystd includes (y_i-\mu_i) 
+    	info.log <- info.logT1 - info.logT2 - info.logT3
+	} else{
+		smm <- outer(spt, th$bPrime, "-")
+		smmStar <-  outer(spt, th$bPrimeSW, "-")
+		smmfTiltSW <- smm * th$fTiltSW
+		smmfTilt <- smm * th$fTilt
+		smmStarfTiltSW <- smmStar * th$fTiltSW
+		
+		info.logT1 <- diag(fTiltSums)
+		info.logT2 <- tcrossprod(th$fTiltSW)
+    	info.logT3.1 <- tcrossprod(smmStarfTiltSW, smm * th$fTilt * rep(1/th$bPrime2, each=nrow(smmfTiltSW))) # under ODS, 3rd term decomposes into 3 more terms
+		info.logT3.2 <- tcrossprod(smmfTilt, smmStarfTiltSW * rep(1/th$bPrime2, each=nrow(smmfTiltSW)))
+		info.logT3.3 <- tcrossprod(smmfTilt, smmfTilt* rep(th$bPrime2SW/(th$bPrime2)^2, each=nrow(smmfTiltSW)))
+		info.logT3 <- info.logT3.1 + info.logT3.2 - info.logT3.3
+    	info.log <- info.logT1 - info.logT2 - info.logT3
+	}
     list(f0=f0, llik=llik, th=th, conv=conv, iter=iter, nhalf=nhalf,
          score.log=score.log, info.log=info.log)
-}
+}			  
+				  
+				  
+				  
+				  
+				  
+				  
+				  
+				  
+ 	
