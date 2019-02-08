@@ -78,6 +78,7 @@ f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2)
 #' }
 #'
 #' @keywords internal
+#' @export
 getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thStart, 
 	thetaControl=theta.control(), f0Control=f0.control(), trace=FALSE)
 {
