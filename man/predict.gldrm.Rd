@@ -4,8 +4,8 @@
 \alias{predict.gldrm}
 \title{Predict method for a gldrm object}
 \usage{
-\method{predict}{gldrm}(object, newdata = NULL, type = c("link", "response",
-  "terms", "fTilt"), se.fit = FALSE, offset = NULL, ...)
+\method{predict}{gldrm}(object, newdata = NULL, type = c("link",
+  "response", "terms", "fTilt"), se.fit = FALSE, offset = NULL, ...)
 }
 \arguments{
 \item{object}{S3 object of class "gldrm", returned from the \code{gldrm} function.}

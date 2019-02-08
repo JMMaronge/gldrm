@@ -23,7 +23,7 @@ Imports: stats (>= 3.2.2), graphics (>= 3.2.2)
 Suggests: testthat (>= 1.0.2)
 License: MIT + file LICENSE
 LazyData: TRUE
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.0.9000
 NeedsCompilation: no
 Packaged: 2018-04-13 05:01:04 UTC; mike
 Author: Michael Wurm [aut, cre],

@@ -4,8 +4,9 @@
 \alias{getBeta}
 \title{Beta optimization routing}
 \usage{
-getBeta(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs, betaStart,
-  thStart, thetaControl = theta.control(), betaControl = beta.control())
+getBeta(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs,
+  betaStart, thStart, thetaControl = theta.control(),
+  betaControl = beta.control())
 }
 \arguments{
 \item{x}{Covariate matrix.}

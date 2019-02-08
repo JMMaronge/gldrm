@@ -4,8 +4,8 @@
 \alias{theta.control}
 \title{Control arguments for \eqn{\theta} update algorithm}
 \usage{
-theta.control(eps = 1e-10, maxiter = 100, maxhalf = 20, maxtheta = 500,
-  logit = TRUE, logsumexp = FALSE)
+theta.control(eps = 1e-10, maxiter = 100, maxhalf = 20,
+  maxtheta = 500, logit = TRUE, logsumexp = FALSE)
 }
 \arguments{
 \item{eps}{Convergence threshold for theta updates. Convergence is
