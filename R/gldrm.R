@@ -142,11 +142,11 @@
 #' fit2
 #'
 #' @export
-gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL,
+gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, samprobs= NULL,
                   gldrmControl=gldrm.control(), thetaControl=theta.control(),
                   betaControl=beta.control(), f0Control=f0.control())
 {
-    sampprobs <- NULL  # Sampling probabilities argument is not yet supported
+    # sampprobs <- NULL  # Sampling probabilities argument is not yet supported
     # param sampprobs Optional sampling probabilities or relative probabilities.
     # This is the probability or relative probability that each observation is sampled,
     # conditional on the response.
