@@ -97,6 +97,7 @@ getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thSta
     conv <- FALSE
     iter <- 0	
     while (!conv && iter<maxiter) {
+		
         iter <- iter + 1
 
         # Score calculation
@@ -214,8 +215,8 @@ getf0 <- function(y, spt, ySptIndex, sptFreq, sampprobs, mu, mu0, f0Start, thSta
 	        smmfTiltSW <- smm * th$fTiltSW
 	        fTiltSums <- rowSums(th$fTilt)
 	        smmfTilt <- smm * th$fTilt
-	        #ystd <- ymm / th$bPrime2SW # this calculates (y_i - \mu_i^*)/b^*''(\theta_i), not in the score function under ODS
-			ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
+	        ystd <- ymm / th$bPrime2SW # this calculates (y_i - \mu_i^*)/b^*''(\theta_i), not in the score function under ODS
+			#ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
 	        ystd[yeqmu] <- 0  # prevent 0/0
 	        score.logT1 <- sptFreq
 	        score.logT2 <- fTiltSWSums

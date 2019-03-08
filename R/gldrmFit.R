@@ -146,7 +146,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
                    thetaStart=NULL, thetaControl=thetaControl)
     llik <- th$llik
-
+	iter.scores <- vector(length=length(unique(y)))
+	llik.iter <- NA
     conv <- FALSE
     iter <- 0
     while (!conv && iter <= maxiter)
@@ -173,12 +174,17 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         th <- ff$th
         llik <- ff$llik
         f0 <- ff$f0
-
+		llik.iter <- c(llik.iter, llik)
+	    if (returnf0ScoreInfo) {
+			iter.scores.temp <- ff$score.log
+			iter.scores <- cbind(iter.scores,iter.scores.temp)
+	    }
         ## Check convergence
-        del <- abs((llik - llikold) / llik)
-        if (llik == 0) del <- 0
-        conv <- del < eps
-
+        del1 <- abs((llik - llikold) / llik)
+		del2 <- abs(ff$score.log)
+        if (llik == 0) del1 <- 0
+		#conv <- del1 < eps & del2 < eps
+		conv <- del1<eps
         if (print) {
             cat("iteration ", iter,
                 "\nrelative change in log-likelihood = ", del,
@@ -258,6 +264,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     if (returnf0ScoreInfo) {
         fit$score.logf0 <- ff$score.log
         fit$info.logf0 <- ff$info.log
+		fit$iter.scores.logf0 <- iter.scores[,-1]
+		fit$iter.llik <- llik.iter[-1]
     }
 
     class(fit) <- "gldrm"
