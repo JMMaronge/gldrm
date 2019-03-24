@@ -155,7 +155,8 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
             if (llik == 0) del <- 0  # consider converged if model fit is perfect
             conv <- del < eps
         }
+		dmudeta <- mu.eta(eta) # added here because i cant get linkinv, linkfun, mu.eta functions to work (JMM coding up cross info 032019)
     }
 
-    return(list(beta=beta, mu=mu, th=th, llik=llik, iter=iter, conv=conv))
+    return(list(beta=beta, mu=mu, dmudeta=dmudeta, th=th, llik=llik, iter=iter, conv=conv))
 }

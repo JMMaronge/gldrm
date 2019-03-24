@@ -142,7 +142,7 @@
 #' fit2
 #'
 #' @export
-gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL,
+gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL, effInfo = FALSE,
                   gldrmControl=gldrm.control(), thetaControl=theta.control(),
                   betaControl=beta.control(), f0Control=f0.control())
 {
@@ -186,7 +186,7 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
     }
 
     modZ <- gldrmFit(x=x, y=z, linkfun=linkfunZ, linkinv=linkinvZ, mu.eta=mu.etaZ,
-                     mu0=mu0Z, offset=offset, sampprobs=sampprobs,
+                     mu0=mu0Z, offset=offset, sampprobs=sampprobs, effInfo = effInfo,
                      gldrmControl=gldrmControl, thetaControl=thetaControl,
                      betaControl=betaControl, f0Control=f0Control)
 

@@ -42,7 +42,7 @@ gldrm.control <- function(eps=1e-10, maxiter=100, returnfTiltMatrix=TRUE,
 #' This function is called by the main \code{gldrm} function.
 #'
 #' @keywords internal
-gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, sampprobs=NULL,
+gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, sampprobs=NULL, effInfo=FALSE,
                      gldrmControl=gldrm.control(), thetaControl=theta.control(),
                      betaControl=beta.control(), f0Control=f0.control())
 {
@@ -146,8 +146,10 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
                    thetaStart=NULL, thetaControl=thetaControl)
     llik <- th$llik
-	iter.scores <- vector(length=length(unique(y)))
-	llik.iter <- NA
+	iter.scoresNorm <- list(NA)
+	llik.iter <- list(NA)
+	scoref0.log.T3 <- list(NA)
+	
     conv <- FALSE
     iter <- 0
     while (!conv && iter <= maxiter)
@@ -166,18 +168,21 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         llik <- bb$llik
         mu <- bb$mu
         beta <- bb$beta
+		
+		dmudeta <- bb$dmudeta
 
         ## update f0 and theta, with fixed beta (mu)
-        ff <- getf0(y=y, spt=spt, ySptIndex=ySptIndex, sptFreq=sptFreq,
-                    sampprobs=sampprobs, mu=mu, mu0=mu0, f0Start=f0, thStart=th,
-                    thetaControl=thetaControl, f0Control=f0Control, trace=FALSE)
+        ff <- getf0(x=x, y=y, spt=spt, ySptIndex=ySptIndex, sptFreq=sptFreq,
+                    sampprobs=sampprobs, effInfo=effInfo, beta=beta, offset=offset, dmudeta=dmudeta, mu=mu, mu0=mu0, f0Start=f0, thStart=th,
+                    thetaControl=thetaControl, f0Control=f0Control)
         th <- ff$th
         llik <- ff$llik
         f0 <- ff$f0
-		llik.iter <- c(llik.iter, llik)
-	    if (returnf0ScoreInfo) {
-			iter.scores.temp <- ff$score.log
-			iter.scores <- cbind(iter.scores,iter.scores.temp)
+		
+	    if (returnf0ScoreInfo) {# used for debugging f0 score
+			iter.scoresNorm[[iter]] <- ff$scoreNorm.log.byIter
+			llik.iter[[iter]] <- ff$llik.byIter 
+			scoref0.log.T3[[iter]] <- ff$score.logT3.iter
 	    }
         ## Check convergence
         del1 <- abs((llik - llikold) / llik)
@@ -218,6 +223,14 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         # varbeta <- chol2inv(qr.R(qr(wtdX)))  # not stable
         # varbeta <- solve(crossprod(wtdX))  # not stable
         varbeta <- tcrossprod(backsolve(qr.R(qr(wtdX)), diag(ncol(wtdX))))
+		if (effInfo==TRUE){
+		infobeta <- crossprod(wtdX)
+		infof0 <- ff$info.log
+		infocross <- ff$crossinfo.log
+		
+		infobeta.eff <- infobeta - infocross%*%solve(infof0)%*%t(infocross)
+		varbeta <- chol2inv(chol(infobeta.eff))
+		}
     }
 
     ## Compute standard errors
@@ -264,8 +277,10 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     if (returnf0ScoreInfo) {
         fit$score.logf0 <- ff$score.log
         fit$info.logf0 <- ff$info.log
-		fit$iter.scores.logf0 <- iter.scores[,-1]
-		fit$iter.llik <- llik.iter[-1]
+		fit$info.logcross <- ff$crossinfo.log
+		fit$iter.scores.logf0 <- iter.scoresNorm
+		fit$iter.llik <- llik.iter
+		fit$scoref0.log.T3 <- scoref0.log.T3
     }
 
     class(fit) <- "gldrm"
