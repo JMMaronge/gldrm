@@ -38,7 +38,7 @@ woodbury <- function(Ainv, Cinv, B) {
 #' @return Object of S3 class "f0Control", which is a list of control arguments.
 #'
 #' @export
-f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2, trueHess=FALSE)
+f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2, trueHess=FALSE, trace=FALSE)
 {
     f0Control <- as.list(environment())
     class(f0Control) <- "f0Control"
@@ -80,7 +80,7 @@ f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2, trueHe
 #' @keywords internal
 #' @export
 getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offset, dmudeta, mu, mu0, f0Start, thStart,
-	thetaControl=theta.control(), f0Control=f0.control(), trace=FALSE)
+	thetaControl=theta.control(), f0Control=f0.control())
 {
     # Initialize nhalf to prevent error when maxiter=0
     nhalf <- 0
@@ -92,6 +92,7 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offse
 	maxhalf <- f0Control$maxhalf
 	maxlogstep <- f0Control$maxlogstep
 	trueHess <- f0Control$trueHess
+	trace <- f0Control$trace
 
 	f0 <- f0Start  # assumes sum(f0Start) = 1 and sum(f0Start * spt) = mu0
 	th <- thStart

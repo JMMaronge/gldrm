@@ -104,7 +104,14 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     ## Initialize f0
     if (is.null(f0Start)) {
+		if (sampprobs!=NULL){
+			f0 <- ( (sptFreq / n) / sampprobs ) # divide by sampling probs when doing ODS
+			f0 <- f0 / sum(f0) # renormalize
+			mu0 <- sum(y*f0) # recalculate mean
+		}
+		else {
         f0 <- sptFreq / n
+	}
         if (mu0 != mean(y))
             f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1, thetaStart=0,
                            thetaControl=thetaControl)$fTilt[, 1]
