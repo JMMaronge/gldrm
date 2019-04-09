@@ -58,6 +58,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     print <- gldrmControl$print
     betaStart <- gldrmControl$betaStart
     f0Start <- gldrmControl$f0Start
+	sampprobs.for.f0start <- sampprobs #it appears that sampprobs gets rewritten below - I am adding this line for the f0start calculation under ODS
 
     ## Tabulation and summary of responses used in estimating f0
     n <- length(y)
@@ -104,18 +105,20 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     ## Initialize f0
     if (is.null(f0Start)) {
-		#if (!is.null(sampprobs)){
-		#	f0 <- ( (sptFreq / n) / sampprobs ) # divide by sampling probs when doing ODS
-		#	f0 <- f0 / sum(f0) # renormalize
-		#	mu0 <- sum(y*f0) # recalculate mean
-		#}
-		#else {
+		if (!is.null(sampprobs)){
+			f0 <- ( (sptFreq / n) / sampprobs.for.f0start ) # divide by sampling probs when doing ODS
+			f0 <- f0 / sum(f0) # renormalize
+			mu0 <- sum(sort(unique(y))*f0) # recalculate mean
+		}
+		else {
         f0 <- sptFreq / n
-		#}
         if (mu0 != mean(y))
             f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1, thetaStart=0,
                            thetaControl=thetaControl)$fTilt[, 1]
-    } else {
+    
+		}
+	} else {
+        
         if (length(f0Start) != length(spt))
             stop("Length of f0Start should equal number of unique values in the response.")
         if (any(f0Start <= 0))
@@ -235,8 +238,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		infof0 <- ff$info.log
 		infocross <- ff$crossinfo.log
 		
-		infobeta.eff <- infobeta - infocross%*%solve(infof0)%*%t(infocross)
-		varbeta <- chol2inv(chol(infobeta.eff))
+		infobeta.eff <- infobeta - infocross%*%solve(infof0,t(infocross))
+		varbeta <- solve(infobeta.eff)
 		}
     }
 
