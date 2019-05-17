@@ -37,6 +37,25 @@ gldrm.control <- function(eps=1e-10, maxiter=100, returnfTiltMatrix=TRUE,
     gldrmControl
 }
 
+nullspace <- function(x){ # function to calculate nullspace of matrix x
+    if (!is.numeric(x)) 
+        stop("Argument 'M' must be a numeric matrix.")
+    if (is.vector(x)) 
+        x <- matrix(c(x), nrow = length(x), ncol = 1)
+    qrx <- qr(t(x))
+    rnk <- qrx$rank
+    if (rnk == ncol(x)) 
+        return(NULL)
+    ind <- if (rnk == 0) 
+        1:ncol(x)
+    else -(1:rnk)
+    qrQ <- qr.Q(qrx, complete = TRUE)[, ind, drop = FALSE]
+    if (length(qrQ) == 0) 
+        return(NULL)
+    else return(qrQ)
+}
+
+
 #' Main optimization function
 #'
 #' This function is called by the main \code{gldrm} function.
@@ -108,15 +127,18 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		if (!is.null(sampprobs)){
 			f0 <- ( (sptFreq / n) / sampprobs.for.f0start ) # divide by sampling probs when doing ODS
 			f0 <- f0 / sum(f0) # renormalize
-			mu0 <- sum(sort(unique(y))*f0) # recalculate mean
+			if (is.null(mu0)) {
+			mu0 <- sum(sort(unique(y))*f0)} # recalculate mean
+
 		}
 		else {
         f0 <- sptFreq / n
+    
+		}
         if (mu0 != mean(y))
             f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1, thetaStart=0,
                            thetaControl=thetaControl)$fTilt[, 1]
-    
-		}
+						  
 	} else {
         
         if (length(f0Start) != length(spt))
@@ -215,7 +237,6 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     bPrime <- th$bPrime
     bPrime2 <- th$bPrime2
     fTilt <- th$fTilt[cbind(ySptIndex, seq_along(ySptIndex))]
-
     ## Compute betaHat variance
     if (!is.null(sampprobs)) {
         q <- th$bPrime2SW / th$bPrime2
@@ -234,13 +255,30 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         # varbeta <- solve(crossprod(wtdX))  # not stable
         varbeta <- tcrossprod(backsolve(qr.R(qr(wtdX)), diag(ncol(wtdX))))
 		if (effInfo==TRUE){
+		# if we want effective information which include constraints!!!	
 		infobeta <- crossprod(wtdX)
 		infof0 <- ff$info.log
-		infocross <- ff$crossinfo.log
+		infocross <- ff$crossinfo.log	
 		
-		infobeta.eff <- infobeta - infocross%*%solve(infof0,t(infocross))
-		varbeta <- solve(infobeta.eff)
-		}
+		length.betas <- length(beta)
+		length.f0 <- length(f0)
+		supp.vals <- sort(unique(y))
+		grad.constraint <- matrix(nrow=2, ncol=(length.betas+length.f0))
+		grad.constraint[1,(1:length.betas)] <- 0
+		grad.constraint[2,(1:length.betas)] <- 0
+		grad.constraint[1,((length.betas+1):((length.betas+length.f0)))] <- exp(f0)	
+		grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(f0)
+		U <- nullspace(grad.constraint)
+		U1 <- U[1:length.betas,]
+		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
+		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
+		constrained.info.inv <- U%*%solve(tmp,t(U))
+					
+		
+		#infobeta.eff <- infobeta - infocross%*%solve(infof0,t(infocross))
+
+		varbeta <- constrained.info.inv[1:length.betas,1:length.betas]
+	}
     }
 
     ## Compute standard errors

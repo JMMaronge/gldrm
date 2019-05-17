@@ -80,7 +80,7 @@ f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2, trueHe
 #' @keywords internal
 #' @export
 getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offset, dmudeta, mu, mu0, f0Start, thStart,
-	thetaControl=theta.control(), f0Control=f0.control())
+	thetaControl=theta.control(), f0Control=f0.control()	)
 {
     # Initialize nhalf to prevent error when maxiter=0
     nhalf <- 0
@@ -229,7 +229,8 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offse
 	                printout <- paste0(printout, "; ", nhalf, " half steps")
 	            cat(printout, "\n")
 	        }
-		} else { # code added for ODS by JMM 02/07/19
+		} else { # code added for ODS by JMM 02/07/19 
+	
             #smm <- outer(spt, th$bPrimeSW, "-") # this isn't right, need (s_m-\mu_i) NOT (s_m - \mu_i^*)
 			smm <- outer(spt, th$bPrime, "-") # corrected from MW's original code
             ymm <- y - th$bPrimeSW # this is (y_i - \mu_i^*)
@@ -239,8 +240,8 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offse
 	        smmfTiltSW <- smm * th$fTiltSW
 	        fTiltSums <- rowSums(th$fTilt)
 	        smmfTilt <- smm * th$fTilt
-	        ystd <- ymm / th$bPrime2SW # this calculates (y_i - \mu_i^*)/b^*''(\theta_i), not in the score function under ODS
-			#ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
+	        #ystd <- ymm / th$bPrime2SW # this calculates (y_i - \mu_i^*)/b^*''(\theta_i), not in the score function under ODS
+			ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
 	        ystd[yeqmu] <- 0  # prevent 0/0
 	        score.logT1 <- sptFreq
 	        score.logT2 <- fTiltSWSums
@@ -390,7 +391,8 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offse
         score.logT1 <- sptFreq
         score.logT2 <- fTiltSWSums
         score.logT3 <- c(smmfTiltSW %*% ystd)
-        score.log <- score.logT1 - score.logT2 - score.logT3	
+        score.log <- score.logT1 - score.logT2 - score.logT3
+			
 		scoreNorm.log.byIter <- c(scoreNorm.log.byIter, sqrt(sum(score.log^2))) #added for debugging scoref0
 		score.logT3.iter <- cbind(score.logT3.iter, score.logT3) #added for debugging
     } else{#smm <- outer(spt, th$bPrimeSW, "-") # this isn't right, need (s_m-\mu_i) NOT (s_m - \mu_i^*)
@@ -410,13 +412,34 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offse
 	        #score.logT3 <- c(smmfTiltSW %*% ystd) # this isn't right, using ODS versions, actual score uses SRS versions (for ODS score)
 			score.logT3 <- c(smmfTilt %*% ystd)
 	        score.log <- score.logT1 - score.logT2 - score.logT3
+
+		
+			#score.tmp <- matrix(data=NA, nrow=nrow(th$fTiltSW), ncol=nrow(x)) # used to debug f0 score, coding score 1 subject at a time
+			#for(i in 1:nrow(x)){
+			#	for(k in 1:nrow(th$fTiltSW)){
+			#		score1 <- ifelse(y[i]==spt[k],1,0)
+			#		score2 <- th$fTiltSW[k,i]
+			#		score3 <- (y[i]- th$bPrimeSW[i])*th$fTilt[k,i]*(spt[k]-th$bPrime[i])*(1/th$bPrime2[i])
+			#		score.tmp[k,i] <- score1 - score2 - score3
+			#	}
+			
+			
+			#}
+			#score.log2 <- rowSums(score.tmp)
+			#print("subject score")
+			#print(score.log2)
+					
+					
+					
+					
 			scoreNorm.log.byIter <- c(scoreNorm.log.byIter, sqrt(sum(score.log^2))) # added for debugging score.f0		
 			score.logT3.iter <- cbind(score.logT3.iter, score.logT3) #added for debugging
     }
 
     # Final info calculation
 	if (is.null(sampprobs)) {
-    	info.logT1 <- diag(fTiltSWSums)
+    	#info.logT1 <- diag(fTiltSWSums) # from Mike's code, after debugging the ODS info, this shouldn't be right either
+		info.logT1 <- nrow(x)*diag(nrow(th$fTilt))
     	info.logT2 <- tcrossprod(th$fTiltSW)
 		info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(1/th$bPrime2, each=nrow(smmfTiltSW)))
     	#info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(ystd, each=nrow(smmfTiltSW))) #I don't think this is right -- ystd includes (y_i-\mu_i) 
@@ -428,17 +451,78 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, effInfo, beta, offse
 		smmfTilt <- smm * th$fTilt
 		smmStarfTiltSW <- smmStar * th$fTiltSW
 		
-		info.logT1 <- diag(fTiltSums)
+		#info.logT1 <- diag(fTiltSums) # from Mike's Code, after a lot of time, this IS NOT RIGHT
+		info.logT1 <- nrow(x)*diag(nrow(th$fTilt))
 		info.logT2 <- tcrossprod(th$fTiltSW)
     	info.logT3.1 <- tcrossprod(smmStarfTiltSW, smm * th$fTilt * rep(1/th$bPrime2, each=nrow(smmfTiltSW))) # under ODS, 3rd term decomposes into 3 more terms
 		info.logT3.2 <- tcrossprod(smmfTilt, smmStarfTiltSW * rep(1/th$bPrime2, each=nrow(smmfTiltSW)))
 		info.logT3.3 <- tcrossprod(smmfTilt, smmfTilt* rep(th$bPrime2SW/(th$bPrime2)^2, each=nrow(smmfTiltSW)))
 		info.logT3 <- info.logT3.1 + info.logT3.2 - info.logT3.3
     	info.log <- info.logT1 - info.logT2 - info.logT3
+		
+		
+		#print("matrix calc is")
+		#print(info.log)
+		
+		#info.log2.t1 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt)) this chunk of code was used to debug the information
+		#info.log2.t2 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt))
+		#info.log2.t3 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt))
+		#subjs.info.t1 <- list(length=nrow(x))
+		#subjs.info.t2 <- list(length=nrow(x))
+		#subjs.info.t3 <- list(length=nrow(x))
+		#for(i in 1:nrow(x)){
+		#	subj.info.t1 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt))
+		#	subj.info.t2 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt))
+		#	subj.info.t3 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt))
+		#	for(k in 1:nrow(th$fTilt)){
+		#		for(m in 1:nrow(th$fTilt)){
+		#			t1 <- ifelse(k==m,1,0)
+		#			t2 <- th$fTiltSW[k,i]*th$fTiltSW[m,i]
+		#			t3.1 <- (spt[k]-th$bPrimeSW[i])*(spt[m]-th$bPrime[i])*th$fTiltSW[k,i]*th$fTilt[m,i]
+		#			t3.2 <- (spt[m]-th$bPrime[i])*(spt[k]-th$bPrimeSW[i])*th$fTilt[k,i]*th$fTiltSW[m,i]
+		#			t3.3 <- (spt[k]-th$bPrime[i])*(spt[m]-th$bPrime[i])*th$fTilt[k,i]*th$fTilt[m,i]*(th$bPrime2SW[i]/th$bPrime2[i])
+		#			t3 <- (1/th$bPrime2[i])*(t3.1+t3.2-t3.3)
+		#			subj.info.t1[k,m] <- t1
+		#			subj.info.t2[k,m] <- t2
+		#			subj.info.t3[k,m] <- t3
+					
+					
+		#		}
+				
+		#	}
+		#	subjs.info.t1[[i]] <- subj.info.t1
+		#	subjs.info.t2[[i]] <- subj.info.t2
+		#	subjs.info.t3[[i]] <- subj.info.t3
+			
+			
+		#}
+		#info.log2.t1 <- Reduce('+', subjs.info.t1)
+		#info.log2.t2 <- Reduce('+', subjs.info.t2)
+		#info.log2.t3 <- Reduce('+', subjs.info.t3)
+		#print("subject calc t1 is")
+		#print(info.log2.t1)
+		#print("subject calc t2 is")
+		#print(info.log2.t2)
+		#print("subject calc t3 is")
+		#print(info.log2.t3)
 	}
 	if (effInfo==TRUE){
 	q <- th$bPrime2SW/th$bPrime2
-	crossinfo.log <-  (t(x)%*%diag(dmudeta*(1/th$bPrime2)))%*%(t(smmStar*th$fTiltSW - (smm*th$fTilt*q)))
+	crossinfo.log <-  (t(x)%*%diag(dmudeta*(1/th$bPrime2)))%*%(t(smmStar*th$fTiltSW - (smm*th$fTilt*rep(q,each=nrow(smmfTilt)))))
+	
+	#crossinfo.log2 <- matrix(data=NA, nrow=nrow(t(x)), ncol=nrow(th$fTilt))  code used for debugging cross information calc
+	
+	#for(k in 1:nrow(th$fTilt)){
+	#subj.info <- matrix(data=NA, nrow=nrow(x), ncol=ncol(x))
+	#for(i in 1:nrow(x)){
+	#subj.info[i,] <- x[i,]*(dmudeta[i]*(1/th$bPrime2[i]))*((spt[k]-th$bPrimeSW[i])*th$fTiltSW[k,i]-(spt[k]-th$bPrime[i])*th$fTilt[k,i]*(th$bPrime2SW[i]/th$bPrime2[i]))	
+	#}
+	#crossinfo.log2[,k] <- colSums(subj.info)	
+	#}
+	#print("matrix calc is")
+	#print(crossinfo.log)
+	#print("subject calc is")
+	#print(crossinfo.log2)	
 	}else{crossinfo.log <- 0}
 	
     list(f0=f0, llik=llik, th=th, conv=conv, iter=iter, nhalf=nhalf,
