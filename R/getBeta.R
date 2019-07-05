@@ -65,6 +65,9 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
     ## Extract control arguments
     if (class(betaControl) != "betaControl")
       stop("betaControl must be an object of class betaControl returned by betaControl() function.")
+	
+    # Initialize nhalf to prevent error when maxiter=0
+    nhalf <- 0
     eps <- betaControl$eps
     maxiter <- betaControl$maxiter
     maxhalf <- betaControl$maxhalf

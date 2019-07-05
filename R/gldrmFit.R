@@ -29,7 +29,7 @@
 #'
 #' @export
 gldrm.control <- function(eps=1e-10, maxiter=100, returnfTiltMatrix=TRUE,
-                          returnf0ScoreInfo=FALSE, print=FALSE,
+                          returnf0ScoreInfo=FALSE, 	constrainedf0Var=FALSE, print=FALSE,
                           betaStart=NULL, f0Start=NULL)
 {
     gldrmControl <- as.list(environment())
@@ -77,6 +77,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     print <- gldrmControl$print
     betaStart <- gldrmControl$betaStart
     f0Start <- gldrmControl$f0Start
+	constrainedf0Var <- gldrmControl$constrainedf0Var
+	
 	sampprobs.for.f0start <- sampprobs #it appears that sampprobs gets rewritten below - I am adding this line for the f0start calculation under ODS
 
     ## Tabulation and summary of responses used in estimating f0
@@ -95,7 +97,9 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
             if (length(sampprobs) != length(spt))
                 stop(paste0("sampprobs vector should have length equal to the ",
                             "number of unique observed values in the response."))
-            sampprobs <- matrix(sampprobs, nrow=n, ncol=length(sampprobs), byrow=TRUE)
+
+            sampprobs <- matrix(sampprobs, nrow=n, ncol=length(sampprobs), byrow=TRUE) #sampprobs is now a matrix where each row denotes subject and each column denotes a support point, so each entry is the sampling probability for a particular subject at a particular support point
+			
         } else {
             # sampprobs must be a matrix
             if (nrow(sampprobs) != n)
@@ -237,11 +241,22 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     bPrime <- th$bPrime
     bPrime2 <- th$bPrime2
     fTilt <- th$fTilt[cbind(ySptIndex, seq_along(ySptIndex))]
+	
+	
     ## Compute betaHat variance
     if (!is.null(sampprobs)) {
         q <- th$bPrime2SW / th$bPrime2
         w <- dmudeta^2 / th$bPrime2 * q
         wSqrt <- sqrt(w)
+		#beta.info.check <- matrix(data=0, nrow=ncol(x), ncol=ncol(x))
+		#for(i in 1:nrow(x)){
+		#	beta.info.check <- beta.info.check+x[i,]%*%t(x[i,])*(dmudeta[i]^2*(th$bPrime2SW[i]/th$bPrime2[i]^2))}
+		
+		#print("beta info subj is")
+		#print(beta.info.check)	
+			
+			
+		
     } else {
         w <- dmudeta^2 / th$bPrime2
         wSqrt <- sqrt(w)
@@ -257,27 +272,44 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		if (effInfo==TRUE){
 		# if we want effective information which include constraints!!!	
 		infobeta <- crossprod(wtdX)
+		#print("beta info matrix is")
+		#print(infobeta)
+		#print("uncorrected SE")
+		#print(sqrt(diag(solve(infobeta))))
 		infof0 <- ff$info.log
 		infocross <- ff$crossinfo.log	
 		
 		length.betas <- length(beta)
 		length.f0 <- length(f0)
 		supp.vals <- sort(unique(y))
+		g0 <- log(f0)
 		grad.constraint <- matrix(nrow=2, ncol=(length.betas+length.f0))
 		grad.constraint[1,(1:length.betas)] <- 0
 		grad.constraint[2,(1:length.betas)] <- 0
-		grad.constraint[1,((length.betas+1):((length.betas+length.f0)))] <- exp(f0)	
-		grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(f0)
+		grad.constraint[1,((length.betas+1):((length.betas+length.f0)))] <- exp(g0)	
+		grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(g0)
 		U <- nullspace(grad.constraint)
 		U1 <- U[1:length.betas,]
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
 		constrained.info.inv <- U%*%solve(tmp,t(U))
+		if(constrainedf0Var==TRUE){
+			constrainedf0Var <- constrained.info.inv[((length.betas+1):((length.betas+length.f0))), ((length.betas+1):((length.betas+length.f0)))]
+
+		}
+		else{constrainedf0Var<-NULL}
 					
 		
 		#infobeta.eff <- infobeta - infocross%*%solve(infof0,t(infocross))
-
+		#print("information for beta is")
+		#print(infobeta)
+		#print("correction is")
+		#print(infocross%*%solve(infof0,t(infocross)))
+		#print("final info is")
+		#print(infobeta - infocross%*%solve(infof0,t(infocross)))
+		
 		varbeta <- constrained.info.inv[1:length.betas,1:length.betas]
+		#varbeta <- solve(infobeta.eff)
 	}
     }
 
@@ -315,7 +347,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     fit <- list(conv=conv, iter=iter, llik=llik,
                 beta=beta, mu=mu, eta=eta, f0=f0, spt=spt, mu0=mu0,
-                varbeta=varbeta, seBeta=seBeta, seMu=seMu, seEta=seEta,
+                varbeta=varbeta, seBeta=seBeta, seMu=seMu, seEta=seEta, constrained.info.inv=constrainedf0Var,
                 theta=theta, bPrime=bPrime, bPrime2=bPrime2, fTilt=fTilt, sampprobs=sampprobs,
                 llikNull=llikNull, lr.stat=lr.stat, lr.df=lr.df, lr.pval=lr.pval)
 
