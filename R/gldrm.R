@@ -142,7 +142,8 @@
 #' fit2
 #'
 #' @export
-gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL, effInfo = FALSE,
+gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL, 
+				  estprobs = FALSE, sampind=NULL, sampgroups=NULL, groups=NULL, effInfo = TRUE,				
                   gldrmControl=gldrm.control(), thetaControl=theta.control(),
                   betaControl=beta.control(), f0Control=f0.control())
 {
@@ -150,11 +151,21 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
     # param sampprobs Optional sampling probabilities or relative probabilities.
     # This is the probability or relative probability that each observation is sampled,
     # conditional on the response.
-    
+  	fullDataSize <- NULL
+	if(estprobs==TRUE){
+		full.dat <- data
+		mf.full <- model.frame(formula, data)
+		y.full <- stats::model.response(mf.full, type="numeric")
+		data <- data[sampind ==1,]	
+		fullDataSize <- nrow(full.dat)
+	}
+	
+	
     mf <- model.frame(formula, data)
     x <- stats::model.matrix(attr(mf, "terms"), mf)
     attributes(x)[c("assign", "contrasts")] <- NULL
     y <- stats::model.response(mf, type="numeric")
+	#print(table(y))
     if (is.null(offset)) offset <- rep(0, nrow(x))
     if (length(offset) != nrow(x))
         stop("offset should be NULL or a vector with length equal to the number of observations.")
@@ -166,6 +177,39 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
         stop(paste0("link should be a character string or a list containing ",
                     "functions named linkfun, linkinv, and mu.eta"))
     }
+	
+	
+	if(estprobs==TRUE){
+		samp.ind <- sampind
+		fac.y <- sampgroups
+		fit.logit<-glm(samp.ind~fac.y, binomial(link = "identity"))
+		predicted.probs.full <- predict(fit.logit, type="response")
+		spt <- sort(unique(y.full))
+		ySptIndex <- match(y.full, spt)
+		prob.dat <- data.frame(probs = predicted.probs.full, index = ySptIndex)
+		prob.dat.samp <- prob.dat[samp.ind==1,]
+		
+		prob.dat.samp <- prob.dat.samp[order(prob.dat.samp$index),]
+	
+		prob.dat.samp <- unique(prob.dat.samp)
+
+		sampprobs <- prob.dat.samp$probs
+		names(sampprobs) <- prob.dat.samp$index
+		unique.sampprobs <- vector(length=length(unique(groups)))
+		counts <- vector(length=length(unique(groups)))
+		for(i in 1:length(unique(groups))){
+			indexing <- which(groups ==i)
+			counts[i] <- sum(table(y.full)[indexing])
+			unique.sampprobs[i] <- sampprobs[indexing[1]]
+		}
+		#print(counts)
+		#print(unique.sampprobs)
+		xi.info <- diag(counts)*(1/((unique.sampprobs)*(1-unique.sampprobs)))
+				
+		
+		
+
+	}
 
     yMin <- min(y)
     yMax <- max(y)
@@ -187,6 +231,7 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
 
     modZ <- gldrmFit(x=x, y=z, linkfun=linkfunZ, linkinv=linkinvZ, mu.eta=mu.etaZ,
                      mu0=mu0Z, offset=offset, sampprobs=sampprobs, effInfo = effInfo,
+					 estprobs = estprobs, fullDataSize = fullDataSize, sampind=sampind, sampgroups=sampgroups, groups=groups, xiInfo=xi.info,
                      gldrmControl=gldrmControl, thetaControl=thetaControl,
                      betaControl=betaControl, f0Control=f0Control)
 

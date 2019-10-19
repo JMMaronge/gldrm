@@ -62,9 +62,13 @@ nullspace <- function(x){ # function to calculate nullspace of matrix x
 #'
 #' @keywords internal
 gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, sampprobs=NULL, effInfo=FALSE,
+					 estprobs = FALSE, fullDataSize=NULL, sampind=NULL, sampgroups=NULL, groups=NULL, xiInfo=NULL,
                      gldrmControl=gldrm.control(), thetaControl=theta.control(),
                      betaControl=beta.control(), f0Control=f0.control())
 {
+	
+	
+	
     ## Extract control arguments
     if (class(gldrmControl) != "gldrmControl")
         stop("gldrmControl must be an object of class \'gldrmControl\' returned by
@@ -78,7 +82,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     betaStart <- gldrmControl$betaStart
     f0Start <- gldrmControl$f0Start
 	constrainedf0Var <- gldrmControl$constrainedf0Var
-	
+		
 	sampprobs.for.f0start <- sampprobs #it appears that sampprobs gets rewritten below - I am adding this line for the f0start calculation under ODS
 
     ## Tabulation and summary of responses used in estimating f0
@@ -209,20 +213,16 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
         ## update f0 and theta, with fixed beta (mu)
         ff <- getf0(x=x, y=y, spt=spt, ySptIndex=ySptIndex, sptFreq=sptFreq,
-                    sampprobs=sampprobs, effInfo=effInfo, beta=beta, offset=offset, dmudeta=dmudeta, mu=mu, mu0=mu0, f0Start=f0, thStart=th,
+                    sampprobs=sampprobs, estprobs=estprobs, groups=groups, fullDataSize = fullDataSize,
+				    effInfo=effInfo, beta=beta, offset=offset, dmudeta=dmudeta, mu=mu, mu0=mu0, f0Start=f0, thStart=th,
                     thetaControl=thetaControl, f0Control=f0Control)
         th <- ff$th
         llik <- ff$llik
         f0 <- ff$f0
 		
-	    if (returnf0ScoreInfo) {# used for debugging f0 score
-			iter.scoresNorm[[iter]] <- ff$scoreNorm.log.byIter
-			llik.iter[[iter]] <- ff$llik.byIter 
-			scoref0.log.T3[[iter]] <- ff$score.logT3.iter
-	    }
+
         ## Check convergence
         del1 <- abs((llik - llikold) / llik)
-		del2 <- abs(ff$score.log)
         if (llik == 0) del1 <- 0
 		#conv <- del1 < eps & del2 < eps
 		conv <- del1<eps
@@ -270,6 +270,94 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         # varbeta <- solve(crossprod(wtdX))  # not stable
         varbeta <- tcrossprod(backsolve(qr.R(qr(wtdX)), diag(ncol(wtdX))))
 		if (effInfo==TRUE){
+			if (estprobs==TRUE){
+				infobeta <- crossprod(wtdX)
+				#print("beta info matrix is")
+				#print(infobeta)
+				#print("uncorrected SE")
+				#print(sqrt(diag(solve(infobeta))))
+				infof0 <- ff$info.log
+				infocross <- ff$crossinfo.log	
+		
+		
+				infotheta.1 <- cbind(infobeta,infocross)
+				infotheta.2 <- cbind(t(infocross),infof0) 	
+				infotheta <- rbind(infotheta.1, infotheta.2)	
+				#print(solve(infotheta))
+		
+				#length.betas <- length(beta)
+				#length.f0 <- length(f0)
+				#supp.vals <- sort(unique(y))
+				#g0 <- log(f0)
+				#grad.constraint <- matrix(nrow=2, ncol=(length.betas+length.f0))
+				#grad.constraint[1,(1:length.betas)] <- 0
+				#grad.constraint[2,(1:length.betas)] <- 0
+				#grad.constraint[1,((length.betas+1):((length.betas+length.f0)))] <- exp(g0)	
+				#grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(g0)
+				#U <- nullspace(grad.constraint)
+				#U1 <- U[1:length.betas,]
+				#U2 <- U[(length.betas+1):((length.betas+length.f0)),]
+				#tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
+				#constrained.info.inv.theta <- U%*%solve(tmp,t(U))
+				
+				thetaxi.crossinfo <- rbind(ff$betaxi.crossinfo, ff$f0xi.crossinfo.log)
+				
+				
+				#constrained.info.inv<-  constrained.info.inv.theta- constrained.info.inv.theta%*%thetaxi.crossinfo%*%solve(xiInfo)%*%t(thetaxi.crossinfo)%*%constrained.info.inv.theta
+				
+				#print("without constraints")
+				#print(constrained.info.inv)
+				
+				#print("without estimating xi")
+				#print(constrained.info.inv.theta)
+				#print("correction term")
+				#print(constrained.info.inv.theta%*%thetaxi.crossinfo%*%solve(xiInfo)%*%t(thetaxi.crossinfo)%*%constrained.info.inv.theta)
+				
+				D_matrix1 <- cbind(infotheta,thetaxi.crossinfo)
+				D_matrix2 <- cbind(matrix(0,nrow=ncol(thetaxi.crossinfo),ncol=nrow(thetaxi.crossinfo)), xiInfo)
+				D_matrix <- rbind(D_matrix1, D_matrix2)
+				
+				V_matrix1 <- D_matrix1
+				V_matrix2 <- cbind(t(thetaxi.crossinfo),xiInfo)
+				V_matrix <- rbind(V_matrix1,V_matrix2)
+				
+				
+				length.betas <- length(beta)
+				length.f0 <- length(f0)
+				length.xi <- nrow(xiInfo)
+				supp.vals <- sort(unique(y))
+				g0 <- log(f0)
+				grad.constraint <- matrix(nrow=2, ncol=(length.betas+length.f0+length.xi))
+				grad.constraint[1,(1:length.betas)] <- 0
+				grad.constraint[2,(1:length.betas)] <- 0
+				grad.constraint[1,((length.betas+1):((length.betas+length.f0)))] <- exp(g0)	
+				grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(g0)
+				grad.constraint[1,((length.betas+length.f0+1):((length.betas+length.f0+length.xi)))] <- 0
+				grad.constraint[2,((length.betas+length.f0+1):((length.betas+length.f0+length.xi)))] <- 0
+				U <- nullspace(grad.constraint)
+				#U1 <- U[1:length.betas,]
+				#U2 <- U[(length.betas+1):((length.betas+length.f0)),]
+				#tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
+				constrained.D.matrix.inv <- U%*%solve(t(U)%*%D_matrix%*%U,t(U))
+				constrained.V.matrix.inv <- U%*%solve(t(U)%*%V_matrix%*%U,t(U))
+				#svd.constrained.V.inv <- svd(constrained.V.matrix.inv)
+	
+				
+				
+				#constrained.V.matrix <- svd.constrained.V.inv$v%*%diag(1/svd.constrained.V.inv$d)%*%t(svd.constrained.V.inv$u)
+				constrained.V.matrix <- U%*%(t(U)%*%V_matrix%*%U)%*%t(U)
+				constrained.info.inv <-constrained.D.matrix.inv%*%constrained.V.matrix%*%t(constrained.D.matrix.inv)
+				
+				#print("with constraints")
+				#print(constrained.info.inv)
+				
+				
+				
+			}	
+				
+				else {
+			
+			
 		# if we want effective information which include constraints!!!	
 		infobeta <- crossprod(wtdX)
 		#print("beta info matrix is")
@@ -278,6 +366,12 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		#print(sqrt(diag(solve(infobeta))))
 		infof0 <- ff$info.log
 		infocross <- ff$crossinfo.log	
+		
+		
+		infotheta.1 <- cbind(infobeta,infocross)
+		infotheta.2 <- cbind(t(infocross),infof0) 	
+		infotheta <- rbind(infotheta.1, infotheta.2)	
+		#print(solve(infotheta))
 		
 		length.betas <- length(beta)
 		length.f0 <- length(f0)
@@ -293,12 +387,14 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
 		constrained.info.inv <- U%*%solve(tmp,t(U))
+		#print("constrained info is")
+		#print(solve(constrained.info.inv))
 		if(constrainedf0Var==TRUE){
 			constrainedf0Var <- constrained.info.inv[((length.betas+1):((length.betas+length.f0))), ((length.betas+1):((length.betas+length.f0)))]
 
 		}
 		else{constrainedf0Var<-NULL}
-					
+		}			
 		
 		#infobeta.eff <- infobeta - infocross%*%solve(infof0,t(infocross))
 		#print("information for beta is")
@@ -358,9 +454,6 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         fit$score.logf0 <- ff$score.log
         fit$info.logf0 <- ff$info.log
 		fit$info.logcross <- ff$crossinfo.log
-		fit$iter.scores.logf0 <- iter.scoresNorm
-		fit$iter.llik <- llik.iter
-		fit$scoref0.log.T3 <- scoref0.log.T3
     }
 
     class(fit) <- "gldrm"
