@@ -61,7 +61,7 @@ nullspace <- function(x){ # function to calculate nullspace of matrix x
 #' This function is called by the main \code{gldrm} function.
 #'
 #' @keywords internal
-gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, sampprobs=NULL, effInfo=FALSE,
+gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, sampprobs=NULL, effInfo=FALSE, spt= NULL,
 					 estprobs = FALSE, fullDataSize=NULL, sampind=NULL, sampgroups=NULL, groups=NULL, xiInfo=NULL,
                      gldrmControl=gldrm.control(), thetaControl=theta.control(),
                      betaControl=beta.control(), f0Control=f0.control())
@@ -81,15 +81,16 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     print <- gldrmControl$print
     betaStart <- gldrmControl$betaStart
     f0Start <- gldrmControl$f0Start
-	constrainedf0Var <- gldrmControl$constrainedf0Var
+	  constrainedf0Var <- gldrmControl$constrainedf0Var
 		
 	sampprobs.for.f0start <- sampprobs #it appears that sampprobs gets rewritten below - I am adding this line for the f0start calculation under ODS
 
     ## Tabulation and summary of responses used in estimating f0
     n <- length(y)
-    spt <- sort(unique(y))  # observed support
-    ySptIndex <- match(y, spt)  # index of each y value within support
-    sptFreq <- table(ySptIndex)
+    if(is.null(spt)){
+    spt <- sort(unique(y))}  # observed support
+    ySptIndex <- match(y, spt)# index of each y value within support
+    sptFreq <- table(factor(ySptIndex, levels = 1:length(spt)))
     attributes(sptFreq) <- NULL
 
     ## Check sampprobs
@@ -98,20 +99,19 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
             stop("sampprobs must be a matrix or vector of nonnegative numeric values")
 
         if (is.vector(sampprobs)) {
-            if (length(sampprobs) != length(spt))
+            if (length(sampprobs) != length(spt)){
                 stop(paste0("sampprobs vector should have length equal to the ",
-                            "number of unique observed values in the response."))
-
+                            "number of unique observed values in the response OR have length equal to specified spt vector."))
+            }
             sampprobs <- matrix(sampprobs, nrow=n, ncol=length(sampprobs), byrow=TRUE) #sampprobs is now a matrix where each row denotes subject and each column denotes a support point, so each entry is the sampling probability for a particular subject at a particular support point
-			
-        } else {
-            # sampprobs must be a matrix
+          } else {
+             #sampprobs must be a matrix
             if (nrow(sampprobs) != n)
                 stop(paste0("sampprobs matrix should have row dimension equal to ",
                             "the number of observations."))
             if (ncol(sampprobs) != length(spt))
                 stop(paste0("sampprobs matrix should have column dimension equal ",
-                            "to the number of unique observe values in the response."))
+                            "to the number of unique observe values in the response OR have length equal to specified spt vector."))
         }
     }
 
@@ -133,8 +133,9 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     ## Initialize f0
     if (is.null(f0Start)) {
 		if (!is.null(sampprobs)){
-			f0 <- ( (sptFreq / n) / sampprobs.for.f0start ) # divide by sampling probs when doing ODS
-			f0 <- f0 / sum(f0) # renormalize
+			f0 <- sptFreq / n
+			#f0 <- ( (sptFreq / n) / sampprobs.for.f0start ) # divide by sampling probs when doing ODS
+			#f0 <- f0 / sum(f0) # renormalize
 			if (is.null(mu0)) {
 			mu0 <- sum(sort(unique(y))*f0)} # recalculate mean
 
@@ -181,7 +182,6 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     stop("gldrm requires n > p.")
     if (any(mu<min(spt) | mu>max(spt)))
     stop("Unable to find beta starting values that do not violate convex hull condition.")
-
     ## Get initial theta and log likelihood
     th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
                    thetaStart=NULL, thetaControl=thetaControl)
@@ -200,20 +200,24 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         llikold <- llik
 
         ## update beta (mu) and theta, with fixed f0:
+		
+		
         bb <- getBeta(x=x, y=y, spt=spt, ySptIndex=ySptIndex, f0=f0,
                       linkinv=linkinv, mu.eta=mu.eta, offset=offset, sampprobs=sampprobs,
                       betaStart=beta, thStart=th,
                       thetaControl=thetaControl, betaControl=betaControl)
+		
         th <- bb$th
         llik <- bb$llik
         mu <- bb$mu
         beta <- bb$beta
 		
 		dmudeta <- bb$dmudeta
+	
 
         ## update f0 and theta, with fixed beta (mu)
         ff <- getf0(x=x, y=y, spt=spt, ySptIndex=ySptIndex, sptFreq=sptFreq,
-                    sampprobs=sampprobs, estprobs=estprobs, groups=groups, fullDataSize = fullDataSize,
+                    sampprobs=sampprobs, estprobs=estprobs, groups=groups,
 				    effInfo=effInfo, beta=beta, offset=offset, dmudeta=dmudeta, mu=mu, mu0=mu0, f0Start=f0, thStart=th,
                     thetaControl=thetaControl, f0Control=f0Control)
         th <- ff$th
@@ -231,8 +235,10 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
                 "\nrelative change in log-likelihood = ", del,
                 "  (eps = ", eps, ")\n")
         }
+		
     }
 
+	
     ## Final values
     eta <- linkfun(mu)
     dmudeta <- mu.eta(eta)
@@ -245,7 +251,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 	
     ## Compute betaHat variance
     if (!is.null(sampprobs)) {
-        q <- th$bPrime2SW / th$bPrime2
+		q <- (th$bPrime2SW / th$bPrime2)
         w <- dmudeta^2 / th$bPrime2 * q
         wSqrt <- sqrt(w)
 		#beta.info.check <- matrix(data=0, nrow=ncol(x), ncol=ncol(x))
@@ -271,14 +277,20 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         varbeta <- tcrossprod(backsolve(qr.R(qr(wtdX)), diag(ncol(wtdX))))
 		if (effInfo==TRUE){
 			if (estprobs==TRUE){
+				
+				
 				infobeta <- crossprod(wtdX)
+				
 				#print("beta info matrix is")
 				#print(infobeta)
 				#print("uncorrected SE")
 				#print(sqrt(diag(solve(infobeta))))
 				infof0 <- ff$info.log
 				infocross <- ff$crossinfo.log	
-		
+				#print("f0 info matrix is")
+				#print(infof0)
+				#print("beta f0 cross info matrix is")
+				#print(infocross)
 		
 				infotheta.1 <- cbind(infobeta,infocross)
 				infotheta.2 <- cbind(t(infocross),infof0) 	
@@ -301,7 +313,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 				#constrained.info.inv.theta <- U%*%solve(tmp,t(U))
 				
 				thetaxi.crossinfo <- rbind(ff$betaxi.crossinfo, ff$f0xi.crossinfo.log)
-				
+				#print("theta xi cross info")
+				#print(thetaxi.crossinfo)
 				
 				#constrained.info.inv<-  constrained.info.inv.theta- constrained.info.inv.theta%*%thetaxi.crossinfo%*%solve(xiInfo)%*%t(thetaxi.crossinfo)%*%constrained.info.inv.theta
 				
@@ -335,18 +348,44 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 				grad.constraint[1,((length.betas+length.f0+1):((length.betas+length.f0+length.xi)))] <- 0
 				grad.constraint[2,((length.betas+length.f0+1):((length.betas+length.f0+length.xi)))] <- 0
 				U <- nullspace(grad.constraint)
+				#U<- round(U)
+				#print("nullspace matrix")
+				#print(U)
+				#	print(dim(U))
 				#U1 <- U[1:length.betas,]
 				#U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 				#tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
-				constrained.D.matrix.inv <- U%*%solve(t(U)%*%D_matrix%*%U,t(U))
-				constrained.V.matrix.inv <- U%*%solve(t(U)%*%V_matrix%*%U,t(U))
+				
+				#svd.Vmat <- svd(V_matrix)	
+				#print(solve(V_matrix))
+				#pseudo.inv.Vmat <- svd.Vmat$v%*%(diag(1/svd.Vmat$d)*t(svd.Vmat$u))
+				#print(pseudo.inv.Vmat)
+				#print("xi info")
+				#print(xiInfo)
+			
+				
+				
+				svd.v_matrix <- svd(V_matrix)
+				psuedo.inv_v <- svd.v_matrix$v%*%((1/svd.v_matrix$d) * t(svd.v_matrix$u))
+				unconstrained.info <- t(D_matrix)%*%psuedo.inv_v%*%D_matrix
+				#print("inverted v matrix")
+				#print(ginv(V_matrix))
+				
+				
+				#print("matrix to invert")
+				#print(t(U)%*%unconstrained.info%*%U)
+				#print(eigen(t(U)%*%unconstrained.info%*%U))
+				constrained.info.inv <- U%*%solve(t(U)%*%unconstrained.info%*%U,t(U))
+				
+				#constrained.D.matrix.inv <- U%*%solve(t(U)%*%D_matrix%*%U,t(U))
+				#constrained.V.matrix.inv <- U%*%solve(t(U)%*%V_matrix%*%U,t(U))
 				#svd.constrained.V.inv <- svd(constrained.V.matrix.inv)
 	
 				
 				
 				#constrained.V.matrix <- svd.constrained.V.inv$v%*%diag(1/svd.constrained.V.inv$d)%*%t(svd.constrained.V.inv$u)
-				constrained.V.matrix <- U%*%(t(U)%*%V_matrix%*%U)%*%t(U)
-				constrained.info.inv <-constrained.D.matrix.inv%*%constrained.V.matrix%*%t(constrained.D.matrix.inv)
+				#constrained.V.matrix <- U%*%(t(U)%*%V_matrix%*%U)%*%t(U)
+				#constrained.info.inv <-constrained.D.matrix.inv%*%constrained.V.matrix%*%t(constrained.D.matrix.inv)
 				
 				#print("with constraints")
 				#print(constrained.info.inv)
@@ -387,13 +426,34 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
 		constrained.info.inv <- U%*%solve(tmp,t(U))
+		
 		#print("constrained info is")
-		#print(solve(constrained.info.inv))
+		#print(constrained.info.inv)
 		if(constrainedf0Var==TRUE){
 			constrainedf0Var <- constrained.info.inv[((length.betas+1):((length.betas+length.f0))), ((length.betas+1):((length.betas+length.f0)))]
+			b.mat <- matrix(NA, nrow=length.f0-1, ncol=length.f0)
+			for(i in 1:(length.f0-1)){
+				b.mat[i,] <- c(f0[1:i],rep(0,length.f0-i))
+			}
+			
+			b.mat.test <- matrix(NA, nrow=length.f0, ncol=length.f0)
+			for(i in 1:length.f0){
+				b.mat.test[i,] <- c(f0[1:i],rep(0,length.f0-i))
+			}
+			
+			constrainedf0_cdfVar <- b.mat%*%constrainedf0Var%*%t(b.mat)
+			
+			b.mat2 <-  matrix(NA, nrow=length.f0-1, ncol=length.f0)
+			for(i in 1:(length.f0-1)){
+				
+				b.mat2[i,] <- c((f0[1:i]/sum(f0[1:i]))+ (f0[1:i]/(1-sum(f0[1:i]))),rep(0,length.f0-i))
+			}
+			constrainedf0_cdfVar.logit <- b.mat2%*%constrainedf0Var%*%t(b.mat2)	
 
 		}
-		else{constrainedf0Var<-NULL}
+		else{
+			constrainedf0Var<-NULL
+			constrainedf0_cdfVar<- NULL}
 		}			
 		
 		#infobeta.eff <- infobeta - infocross%*%solve(infof0,t(infocross))
@@ -443,8 +503,10 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     fit <- list(conv=conv, iter=iter, llik=llik,
                 beta=beta, mu=mu, eta=eta, f0=f0, spt=spt, mu0=mu0,
-                varbeta=varbeta, seBeta=seBeta, seMu=seMu, seEta=seEta, constrained.info.inv=constrainedf0Var,
-                theta=theta, bPrime=bPrime, bPrime2=bPrime2, fTilt=fTilt, sampprobs=sampprobs,
+                varbeta=varbeta, seBeta=seBeta, seMu=seMu, seEta=seEta, constrained.info.inv=constrainedf0Var, #constrainedf0_cdfVar=constrainedf0_cdfVar,
+				#constrainedf0_cdfVar.logit=constrainedf0_cdfVar.logit, 
+				xiInfo=xiInfo,
+                theta=theta, bPrime=bPrime, bPrime2=bPrime2, fTilt=fTilt, sampprobs=sampprobs, dmudeta=dmudeta, mu=mu,
                 llikNull=llikNull, lr.stat=lr.stat, lr.df=lr.df, lr.pval=lr.pval)
 
     if (returnfTiltMatrix)

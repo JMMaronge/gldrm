@@ -142,8 +142,8 @@
 #' fit2
 #'
 #' @export
-gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL, 
-				  estprobs = FALSE, sampind=NULL, sampgroups=NULL, groups=NULL, effInfo = TRUE,				
+gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL, spt = NULL, 
+				  estprobs = FALSE, estimate=FALSE, sampind=NULL, sampgroups=NULL, groups=NULL, effInfo = TRUE, xiInfo=NULL,
                   gldrmControl=gldrm.control(), thetaControl=theta.control(),
                   betaControl=beta.control(), f0Control=f0.control())
 {
@@ -180,11 +180,13 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
 	
 	
 	if(estprobs==TRUE){
+		if(estimate==TRUE){
 		samp.ind <- sampind
 		fac.y <- sampgroups
 		fit.logit<-glm(samp.ind~fac.y, binomial(link = "identity"))
 		predicted.probs.full <- predict(fit.logit, type="response")
-		spt <- sort(unique(y.full))
+		if(is.null(spt)){
+		spt <- sort(unique(y.full))}
 		ySptIndex <- match(y.full, spt)
 		prob.dat <- data.frame(probs = predicted.probs.full, index = ySptIndex)
 		prob.dat.samp <- prob.dat[samp.ind==1,]
@@ -201,11 +203,10 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
 			indexing <- which(groups ==i)
 			counts[i] <- sum(table(y.full)[indexing])
 			unique.sampprobs[i] <- sampprobs[indexing[1]]
-		}
+			xiInfo <- diag(counts)*(1/((unique.sampprobs)*(1-unique.sampprobs)))
+		}}
 		#print(counts)
-		#print(unique.sampprobs)
-		xi.info <- diag(counts)*(1/((unique.sampprobs)*(1-unique.sampprobs)))
-				
+		#
 		
 		
 
@@ -218,7 +219,8 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
     Z <- function(y) (y - yMed) * 2 / (yMax - yMin)
     Y <- function(z) z * (yMax - yMin) / 2 + yMed
     z <- Z(y)  # y standardized to interval [-1, 1]
-
+    if(!is.null(spt)){
+    spt <- Z(spt)} 
     linkfunZ <- function(muZ) link$linkfun(Y(muZ))
     linkinvZ <- function(eta) Z(link$linkinv(eta))
     mu.etaZ <- function(eta) 2 / (yMax - yMin) * link$mu.eta(eta)
@@ -230,8 +232,8 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
     }
 
     modZ <- gldrmFit(x=x, y=z, linkfun=linkfunZ, linkinv=linkinvZ, mu.eta=mu.etaZ,
-                     mu0=mu0Z, offset=offset, sampprobs=sampprobs, effInfo = effInfo,
-					 estprobs = estprobs, fullDataSize = fullDataSize, sampind=sampind, sampgroups=sampgroups, groups=groups, xiInfo=xi.info,
+                     mu0=mu0Z, offset=offset, sampprobs=sampprobs, effInfo = effInfo, spt=spt,
+					 estprobs = estprobs, fullDataSize = fullDataSize, sampind=sampind, sampgroups=sampgroups, groups=groups, xiInfo=xiInfo,
                      gldrmControl=gldrmControl, thetaControl=thetaControl,
                      betaControl=betaControl, f0Control=f0Control)
 

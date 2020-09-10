@@ -77,6 +77,16 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
     beta <- betaStart
     th <- thStart
     llik <- th$llik
+	
+	if(maxiter==0){
+        eta <- c(x %*% beta + offset)
+        mu <- linkinv(eta)
+        dmudeta <- mu.eta(eta)
+		iter <-0
+		conv <- TRUE}
+		else{
+		
+		
 
     conv <- FALSE
     maxhalfreached <- FALSE
@@ -160,6 +170,7 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
         }
 		dmudeta <- mu.eta(eta) # added here because i cant get linkinv, linkfun, mu.eta functions to work (JMM coding up cross info 032019)
     }
-
+	}
+	
     return(list(beta=beta, mu=mu, dmudeta=dmudeta, th=th, llik=llik, iter=iter, conv=conv))
 }

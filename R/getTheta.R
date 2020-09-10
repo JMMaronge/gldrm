@@ -114,8 +114,8 @@ getTheta <- function(spt, f0, mu, sampprobs, ySptIndex, thetaStart=NULL, thetaCo
     }
 
     ## Argument checks
-    if (length(f0) != sptN)
-        stop("spt and f0 must be vectors of equal length.")
+    #if (length(f0) != sptN)
+    #    stop("spt and f0 must be vectors of equal length.")
     if (any(f0 < 0))
         stop("f0 values cannot be negative.")
     if (min(mu)<m || max(mu)>M)

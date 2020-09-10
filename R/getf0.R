@@ -82,7 +82,7 @@ f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2, trace=
 #'
 #' @keywords internal
 #' @export
-getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, fullDataSize, effInfo, beta, offset, dmudeta, mu, mu0, f0Start, thStart,
+getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, effInfo, beta, offset, dmudeta, mu, mu0, f0Start, thStart,
 	thetaControl=theta.control(), f0Control=f0.control()	)
 {
     # Initialize nhalf to prevent error when maxiter=0
@@ -100,6 +100,8 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, fu
 	th <- thStart
 	llik <- th$llik
 	score.log <- NULL
+	
+
 
     conv <- FALSE
     iter <- 0	
@@ -482,6 +484,8 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, fu
 		smmfTiltSW <- smm * th$fTiltSW
 		smmfTilt <- smm * th$fTilt
 		smmStarfTiltSW <- smmStar * th$fTiltSW
+	
+		
 		
 		#info.logT1 <- diag(fTiltSums) # from Mike's Code, after a lot of time, this IS NOT RIGHT
 		info.logT1 <- diag(rowSums(th$fTiltSW))
@@ -494,7 +498,6 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, fu
     	info.log <- info.logT1 - info.logT2 - info.logT3
 		#print("matrix f0 info")
 		#print(info.log)
-		
 		
 		#info.log2.t1 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt)) #this chunk of code was used to debug the information
 		#info.log2.t2 <- matrix(data=NA, nrow=nrow(th$fTilt), ncol=nrow(th$fTilt))
@@ -553,7 +556,7 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, fu
 		if(is.null(sampprobs)){crossinfo.log <- matrix(0,nrow=ncol(x),ncol=nrow(th$fTilt))}
 		else{
 	q <- th$bPrime2SW/th$bPrime2
-	crossinfo.log <-  (t(x)%*%diag(dmudeta*(1/th$bPrime2)))%*%(t(smmStar*th$fTiltSW - (smm*th$fTilt*rep(q,each=nrow(smmfTilt))))) # cross info for beta and f0 on log scale
+	crossinfo.log <-  t((dmudeta*(1/th$bPrime2))*x)%*%(t(smmStar*th$fTiltSW - (smm*th$fTilt*rep(q,each=nrow(smmfTilt))))) # cross info for beta and f0 on log scale
 	#crossinfo.log <- matrix(0,nrow=ncol(x),ncol=nrow(th$fTilt))
 		}
 	
@@ -620,7 +623,7 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, fu
 					tmp1 <- ifelse(j%in%indexing,th$fTiltSW[j,i],0)
 					tmp2 <- th$fTiltSW[j,i]*sum(th$fTiltSW[indexing,i])
 					tmp3 <- ((spt[j]-th$bPrime[i])*th$fTilt[j,i]*sum((spt[indexing]-th$bPrimeSW[i])*th$fTiltSW[indexing,i]))/(th$bPrime2[i])
-					tmp[j,k] <-(tmp1-tmp2-tmp3)/sampprobs[i,indexing[1]]
+					tmp[j,k] <- (tmp1-tmp2-tmp3)/sampprobs[i,indexing[1]]
 					
 				}
 			}
