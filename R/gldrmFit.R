@@ -480,6 +480,9 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     }
 
     ## Compute standard errors
+    if(length.betas==1){
+      varbeta <- as.double(varbeta)
+    }
     seBeta <- sqrt(diag(varbeta))
     print(varbeta)
     seEta <- sqrt(pmax(0, apply(x, 1, function(xx) crossprod(xx, varbeta) %*% xx)))
