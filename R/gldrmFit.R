@@ -426,7 +426,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 
 		
-		if(length.betas==1){
+		if(length(beta)==1){
 		  infobeta <- as.double(infobeta)
 		  U1 <- t(U1) # this technically not mathematically correct, doing this because R forces U1 to column vector when it should be row
 		  tmp <-  (t(U1)%*%U1)*infobeta + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
