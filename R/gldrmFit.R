@@ -424,19 +424,12 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(g0)
 		U <- nullspace(grad.constraint)
 		U1 <- U[1:length.betas,]
-		print("U1")
-		print(U1)
-		print(str(U1))
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 		
 		if(length.betas==1){
       print("length beta = 1")
 		  infobeta <- as.double(infobeta)
-		  print(t(U2)%*%t(infocross))
-		  print(U1)
-		  print(infobeta*(t(U1)%*%U1))
-		  print(outer(U1, U1S))
-		  tmp <- infobeta*(t(U1)%*%U1) + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
+		  tmp <- as.double(infobeta*(t(U1)%*%U1)) + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
 		} else{
 		  print("check matrix")
 		  print(str(infobeta))
