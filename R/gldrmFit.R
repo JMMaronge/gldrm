@@ -484,7 +484,6 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
       varbeta <- as.matrix(varbeta)
     }
     seBeta <- sqrt(diag(varbeta))
-    print(varbeta)
     seEta <- sqrt(pmax(0, apply(x, 1, function(xx) crossprod(xx, varbeta) %*% xx)))
     seMu <- dmudeta * seEta
 
@@ -493,7 +492,6 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
   
     betaTemp <- seBetaTemp <- rep(NA, nBeta)
     betaTemp[!naID] <- beta
-    print(seBeta)
     seBetaTemp[!naID] <- seBeta
     beta <- betaTemp
     seBeta <- seBetaTemp
