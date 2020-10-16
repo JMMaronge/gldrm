@@ -413,7 +413,6 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		#print(solve(infotheta))
 		
 		length.betas <- length(beta)
-		print(length.betas)
 		length.f0 <- length(f0)
 		supp.vals <- sort(unique(y))
 		g0 <- log(f0)
@@ -428,13 +427,11 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
 		
 		if(length.betas==1){
-      print("length beta = 1")
 		  infobeta <- as.double(infobeta)
 		  U1 <- t(U1) # this technically not mathematically correct, doing this because R forces U1 to column vector when it should be row
 		  tmp <-  (t(U1)%*%U1)*infobeta + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
 		} else{
 
-		  print(infobeta)
 		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2}
 		
 		constrained.info.inv <- U%*%solve(tmp,t(U))
@@ -484,6 +481,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     ## Compute standard errors
     seBeta <- sqrt(diag(varbeta))
+    print(varbeta)
     seEta <- sqrt(pmax(0, apply(x, 1, function(xx) crossprod(xx, varbeta) %*% xx)))
     seMu <- dmudeta * seEta
 
@@ -491,6 +489,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     nBeta <- length(beta) + sum(naID)
     betaTemp <- seBetaTemp <- rep(NA, nBeta)
     betaTemp[!naID] <- beta
+    print(seBeta)
     seBetaTemp[!naID] <- seBeta
     beta <- betaTemp
     seBeta <- seBetaTemp
