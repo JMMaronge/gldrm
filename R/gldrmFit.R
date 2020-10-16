@@ -426,8 +426,12 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 		
 		if(!is.matrix(infobeta)){
+		  print("check scalar")
+		  print(str(infobeta))
+		  print(infobeta)
 		  tmp <- t(U1)*infobeta*U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
 		} else{
+		  print("check matrix")
 		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2}
 		
 		constrained.info.inv <- U%*%solve(tmp,t(U))
