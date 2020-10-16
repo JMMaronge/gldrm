@@ -481,7 +481,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     ## Compute standard errors
     if(length.betas==1){
-      varbeta <- as.double(varbeta)
+      varbeta <- as.matrix(varbeta)
     }
     seBeta <- sqrt(diag(varbeta))
     print(varbeta)
@@ -490,6 +490,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
     ## Add NA values back into beta vector and varbeta if covariate matrix is not full rank
     nBeta <- length(beta) + sum(naID)
+  
     betaTemp <- seBetaTemp <- rep(NA, nBeta)
     betaTemp[!naID] <- beta
     print(seBeta)
