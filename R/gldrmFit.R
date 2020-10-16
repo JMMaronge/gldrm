@@ -432,15 +432,9 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		if(length.betas==1){
       print("length beta = 1")
 		  infobeta <- as.double(infobeta)
-		  print(infobeta)
-		  print("U2")
-		  print(U2)
-		  print("infocross")
-		  print(infocross)
-		  print("t(U2)")
-		  print(t(U2))
-		  print("t(infocross)")
-		  print(t(infocross))
+		  print(t(U2)%*%t(infocross))
+		  print(U1)
+		  print(t(U2)%*%t(infocross)%*%U1)
 		  tmp <- infobeta*(t(U1)%*%U1) + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
 		} else{
 		  print("check matrix")
