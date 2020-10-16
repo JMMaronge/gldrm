@@ -433,7 +433,9 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		  
 		  print(t(U1))
 		  print(infocross)
-		  tmp <- as.double(infobeta*(t(U1)%*%U1)) + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
+		  print(U1)
+		  print(crossprod(U1, infocross))
+		  tmp <- as.double(infobeta*(t(U1)%*%U1)) + t(U2)%*%t(infocross)%*%U1 + crossprod(U1, infocross)%*%U2 + t(U2)%*%infof0%*%U2  
 		} else{
 
 		  print(infobeta)
