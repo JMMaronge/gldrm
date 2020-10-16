@@ -424,8 +424,14 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		U <- nullspace(grad.constraint)
 		U1 <- U[1:length.betas,]
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
-		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2
+		
+		if(!is.matrix(infobeta)){
+		  tmp <- t(U1)*infobeta*U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
+		} else{
+		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2}
+		
 		constrained.info.inv <- U%*%solve(tmp,t(U))
+		
 		
 		#print("constrained info is")
 		#print(constrained.info.inv)
