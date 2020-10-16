@@ -413,6 +413,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		#print(solve(infotheta))
 		
 		length.betas <- length(beta)
+		print("length betas")
+		print(length.betas)
 		length.f0 <- length(f0)
 		supp.vals <- sort(unique(y))
 		g0 <- log(f0)
@@ -423,6 +425,9 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		grad.constraint[2,((length.betas+1):((length.betas+length.f0)))] <- supp.vals*exp(g0)
 		U <- nullspace(grad.constraint)
 		U1 <- U[1:length.betas,]
+		print("U1")
+		print(U1)
+		print(str(U1))
 		U2 <- U[(length.betas+1):((length.betas+length.f0)),]
 		
 		if(!is.matrix(infobeta)){
