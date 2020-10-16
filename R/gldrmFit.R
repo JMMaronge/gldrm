@@ -432,6 +432,8 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		  tmp <- t(U1)*infobeta*U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2  
 		} else{
 		  print("check matrix")
+		  print(str(infobeta))
+		  print(infobeta)
 		tmp <- t(U1)%*%infobeta%*%U1 + t(U2)%*%t(infocross)%*%U1 + t(U1)%*%infocross%*%U2 + t(U2)%*%infof0%*%U2}
 		
 		constrained.info.inv <- U%*%solve(tmp,t(U))
