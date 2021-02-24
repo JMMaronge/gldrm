@@ -84,7 +84,7 @@ theta.control <- function(eps=1e-10, maxiter=100, maxhalf=20, maxtheta=500,
 #' }
 #'
 #' @keywords internal
-getTheta <- function(spt, f0, mu, sampprobs, ySptIndex, thetaStart=NULL, thetaControl=theta.control())
+getTheta <- function(spt, f0, mu, weights, sampprobs, ySptIndex, thetaStart=NULL, thetaControl=theta.control())
 {
     ## Extract control arguments
     if (class(thetaControl) != "thetaControl")
@@ -225,8 +225,8 @@ getTheta <- function(spt, f0, mu, sampprobs, ySptIndex, thetaStart=NULL, thetaCo
         bPrime2SW <- bPrime2
     }
 
-    ## Calculate log-likelihood
-    llik <- sum(log(fTiltSW[cbind(ySptIndex, seq_along(ySptIndex))]))
+    ## Calculate (potentially weighted) log-likelihood
+    llik <- sum(weights*log(fTiltSW[cbind(ySptIndex, seq_along(ySptIndex))]))
 
     list(theta=theta, fTilt=fTilt, bPrime=bPrime, bPrime2=bPrime2,
          fTiltSW=fTiltSW, bPrimeSW=bPrimeSW, bPrime2SW=bPrime2SW,

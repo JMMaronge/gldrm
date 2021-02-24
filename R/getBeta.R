@@ -58,7 +58,7 @@ beta.control <- function(eps=1e-10, maxiter=1, maxhalf=10)
 #' }
 #'
 #' @keywords internal
-getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs,
+getBeta <- function(x, y, spt, ySptIndex, f0, weights, linkinv, mu.eta, offset, sampprobs,
                     betaStart, thStart,
                     thetaControl=theta.control(), betaControl=beta.control())
 {
@@ -108,18 +108,18 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
         if (!is.null(sampprobs)) {
             q <- th$bPrime2SW / th$bPrime2
             w <- dmudeta^2 / th$bPrime2 * q
-            ymm <- y - th$bPrimeSW
+            ymm <- (y - th$bPrimeSW)
             r <- ymm / (q * dmudeta)
         } else {
             w <- dmudeta^2 / th$bPrime2
-            ymm <- y - mu
+            ymm <- (y - mu)
             r <- ymm / dmudeta
         }
         yeqmu <- which(abs(ymm) < 1e-15)
         w[yeqmu] <- 0  # prevent 0/0
         r[yeqmu] <- 0  # prevent 0/0
         if (any(w==Inf)) break
-        betastep <- unname(coef(lm.wfit(x, r, w)))
+        betastep <- unname(coef(lm.wfit(x, r, weights*w)))
             # qr.coef(qr(wSqrt*x), wSqrt*r) no longer works for some singular matrices
         betastep[is.na(betastep)] <- 0
         ## Let q = b''*(theta) / b''(theta)
@@ -136,7 +136,7 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
         if (min(mu)<sptMin || max(mu)>sptMax) {
             llik <- -Inf
         } else {
-            th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+            th <- getTheta(spt=spt, f0=f0, mu=mu, weights=weights, sampprobs=sampprobs, ySptIndex=ySptIndex,
                            thetaStart=thold$theta, thetaControl=thetaControl)
             llik <- th$llik
         }
@@ -150,7 +150,7 @@ getBeta <- function(x, y, spt, ySptIndex, f0, linkinv, mu.eta, offset, sampprobs
             if (min(mu)<sptMin || max(mu)>sptMax) {
                 llik <- -Inf
             } else {
-                th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+                th <- getTheta(spt=spt, f0=f0, mu=mu, weights, sampprobs=sampprobs, ySptIndex=ySptIndex,
                                thetaStart=thold$theta, thetaControl=thetaControl)
                 llik <- th$llik
             }

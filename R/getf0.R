@@ -82,7 +82,7 @@ f0.control <- function(eps=1e-10, maxiter=1000, maxhalf=20, maxlogstep=2, trace=
 #'
 #' @keywords internal
 #' @export
-getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, effInfo, beta, offset, dmudeta, mu, mu0, f0Start, thStart,
+getf0 <- function(x, y, spt, ySptIndex, sptFreq, weights=weights, sampprobs, estprobs, groups, effInfo, beta, offset, dmudeta, mu, mu0, f0Start, thStart,
 	thetaControl=theta.control(), f0Control=f0.control()	)
 {
     # Initialize nhalf to prevent error when maxiter=0
@@ -100,6 +100,7 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 	th <- thStart
 	llik <- th$llik
 	score.log <- NULL
+	
 	
 
 
@@ -122,10 +123,9 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 	        ystd <- ymm / th$bPrime2SW
 	        ystd[yeqmu] <- 0  # prevent 0/0
 	        score.logT1 <- sptFreq
-	        score.logT2 <- fTiltSWSums
-	        score.logT3 <- c(smmfTiltSW %*% ystd)
-	        score.log <- score.logT1 - score.logT2 - score.logT3	
-			
+	        score.logT2 <- rowSums(t(weights*t(th$fTiltSW)))
+	        score.logT3 <- c(smmfTiltSW %*% (weights*ystd))
+	        score.log <- score.logT1 - score.logT2 - score.logT3
 	        if (iter == 1) {
 	            d1 <- min(fTiltSWSums)  # max inverse diagonal of first information term, on log scale
 				#d1 <- nrow(x)*diag(nrow(th$fTilt))
@@ -159,12 +159,12 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 	        f0 <- exp(log(f0) + logstep)
 	        # Scale and tilt f0
 	        f0 <- f0 / sum(f0)
-	        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, weights=1, sampprobs=NULL, ySptIndex=1,
 	                       thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
 	        # Update theta and likelihood
 	        thold <- th
 	        llikold <- llik
-	        th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	        th <- getTheta(spt=spt, f0=f0, mu=mu, weights=weights, sampprobs=sampprobs, ySptIndex=ySptIndex,
 	                       thetaStart=th$theta, thetaControl=thetaControl)
 	        llik <- th$llik
 	        conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
@@ -186,9 +186,9 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 
 	                f0 <- exp((log(f0) + log(f0old)) / 2)
 	                f0 <- f0 / sum(f0)
-	                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, weights=1, sampprobs=NULL, ySptIndex=1,
 	                               thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
-	                th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	                th <- getTheta(spt=spt, f0=f0, mu=mu, weights=weights, sampprobs=sampprobs, ySptIndex=ySptIndex,
 	                               thetaStart=th$theta, thetaControl=thetaControl)
 	                llik <- th$llik
 	                infoinvBFGS.log <- infoinvBFGS.log / 2
@@ -236,9 +236,9 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 	        
 			
 			score.logT1 <- sptFreq
-	        score.logT2 <- fTiltSWSums 
+	        score.logT2 <- rowSums(t(weights*t(th$fTiltSW)))
 	        #score.logT3 <- c(smmfTiltSW %*% ystd) # this isn't right, using ODS versions, actual score uses SRS versions (for ODS score)
-			score.logT3 <- c(smmfTilt %*% ystd) # use this one for matrix calcs when return
+			score.logT3 <- c(smmfTilt %*% (weights*ystd)) # use this one for matrix calcs when return
 	        score.log <- score.logT1 - score.logT2 - score.logT3
 			#print("matrix calc")
 			#print(score.log)
@@ -294,12 +294,12 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 	        f0 <- exp(log(f0) + logstep)
 	        # Scale and tilt f0
 	        f0 <- f0 / sum(f0)
-	        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, weights=1, sampprobs=NULL, ySptIndex=1,
 	                       thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
 	        # Update theta and likelihood
 	        thold <- th
 	        llikold <- llik
-	        th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	        th <- getTheta(spt=spt, f0=f0, mu=mu, weights=weights, sampprobs=sampprobs,  ySptIndex=ySptIndex,
 	                       thetaStart=th$theta, thetaControl=thetaControl)
 	        llik <- th$llik
 	        conv <- abs((llik - llikold) / (llik + 1e-100)) < eps
@@ -321,9 +321,9 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 
 	                f0 <- exp((log(f0) + log(f0old)) / 2)
 	                f0 <- f0 / sum(f0)
-	                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1,
+	                f0 <- getTheta(spt=spt, f0=f0, mu=mu0, weights=1, sampprobs=NULL, ySptIndex=1,
 	                               thetaStart=0, thetaControl=thetaControl)$fTilt[, 1]
-	                th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+	                th <- getTheta(spt=spt, f0=f0, mu=mu, weights=weights, sampprobs=sampprobs, ySptIndex=ySptIndex,
 	                               thetaStart=th$theta, thetaControl=thetaControl)
 	                llik <- th$llik
 	                infoinvBFGS.log <- infoinvBFGS.log / 2
@@ -369,8 +369,8 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
         ystd <- ymm / th$bPrime2SW
         ystd[yeqmu] <- 0  # prevent 0/0
         score.logT1 <- sptFreq
-        score.logT2 <- fTiltSWSums
-        score.logT3 <- c(smmfTiltSW %*% ystd)
+        score.logT2 <- rowSums(t(weights*t(th$fTiltSW)))
+        score.logT3 <- c(smmfTiltSW %*% (weights*ystd))
         score.log <- score.logT1 - score.logT2 - score.logT3
 			
     } else{#smm <- outer(spt, th$bPrimeSW, "-") # this isn't right, need (s_m-\mu_i) NOT (s_m - \mu_i^*)
@@ -386,9 +386,9 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
 			ystd <- ymm / th$bPrime2 # this calculates (y_i - \mu_i^*)/b''(\theta_i) [notice we no longer have b^*''(\theta_i)]
 	        ystd[yeqmu] <- 0  # prevent 0/0
 			score.logT1 <- sptFreq
-	        score.logT2 <- fTiltSWSums
+	        score.logT2 <- rowSums(t(weights*t(th$fTiltSW)))
 	        #score.logT3 <- c(smmfTiltSW %*% ystd) # this isn't right, using ODS versions, actual score uses SRS versions (for ODS score)
-			score.logT3 <- c(smmfTilt %*% ystd) # use this one when doing matrix calcs
+			score.logT3 <- c(smmfTilt %*% (weights*ystd)) # use this one when doing matrix calcs
 	        score.log <- score.logT1 - score.logT2 - score.logT3
 			#print("matrix score")
 			#print(score.log)
@@ -418,11 +418,11 @@ getf0 <- function(x, y, spt, ySptIndex, sptFreq, sampprobs, estprobs, groups, ef
     # Final info calculation
 	if (is.null(sampprobs)) {
     	#info.logT1 <- diag(fTiltSWSums) # from Mike's code, after debugging the ODS info, this shouldn't be right either
-		info.logT1 <- diag(rowSums(th$fTilt))
+		info.logT1 <- diag(rowSums(t(weights*t(th$fTilt))))
 		#print("matrix term")
 		#print(info.logT1)
-    	info.logT2 <- tcrossprod(th$fTiltSW)
-		info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(1/th$bPrime2, each=nrow(smmfTiltSW)))
+    	info.logT2 <- tcrossprod(sqrt(weights)*th$fTiltSW)
+		info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(weights*(1/th$bPrime2), each=nrow(smmfTiltSW)))
     	#info.logT3 <- tcrossprod(smmfTiltSW, smmfTiltSW * rep(ystd, each=nrow(smmfTiltSW))) #I don't think this is right -- ystd includes (y_i-\mu_i) 
     	info.log <- info.logT1 - info.logT2 - info.logT3
 		#print("matrix f0 info")

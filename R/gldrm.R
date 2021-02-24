@@ -142,11 +142,14 @@
 #' fit2
 #'
 #' @export
-gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sampprobs= NULL, spt = NULL, 
+gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, weights = NULL, sampprobs= NULL, spt = NULL, 
 				  estprobs = FALSE, estimate=FALSE, sampind=NULL, sampgroups=NULL, groups=NULL, effInfo = TRUE, xiInfo=NULL,
                   gldrmControl=gldrm.control(), thetaControl=theta.control(),
                   betaControl=beta.control(), f0Control=f0.control())
-{
+{   # weights have been implemented for random sampling but only partally implemented for sampprobs
+    # p-values with weights and degrees of freedom is not correct
+  
+  
     # sampprobs <- NULL  # Sampling probabilities argument is not yet supported
     # param sampprobs Optional sampling probabilities or relative probabilities.
     # This is the probability or relative probability that each observation is sampled,
@@ -159,8 +162,9 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
 		data <- data[sampind ==1,]	
 		fullDataSize <- nrow(full.dat)
 	}
-	
-	
+  	
+
+
     mf <- model.frame(formula, data)
     x <- stats::model.matrix(attr(mf, "terms"), mf)
     attributes(x)[c("assign", "contrasts")] <- NULL
@@ -178,7 +182,20 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
                     "functions named linkfun, linkinv, and mu.eta"))
     }
 	
+    if(is.null(weights)==FALSE){
+      if (length(y)!=length(weights)|!all(weights>0)|!is.vector(weights)){
+      stop("weights should be NULL or a vector of strictly positive entries with length equal to number of non-missing observations")
+      }
+      if (is.null(sampprobs)==FALSE){
+        stop("using weight and sampprobs arguments simultaneously is not currently supported")
+      }
+    }
 	
+    if(is.null(weights)==TRUE){
+      weights <- 1
+    }
+    
+    
 	if(estprobs==TRUE){
 		if(estimate==TRUE){
 		samp.ind <- sampind
@@ -232,7 +249,7 @@ gldrm <- function(formula, data=NULL, link="identity", mu0=NULL, offset=NULL, sa
     }
 
     modZ <- gldrmFit(x=x, y=z, linkfun=linkfunZ, linkinv=linkinvZ, mu.eta=mu.etaZ,
-                     mu0=mu0Z, offset=offset, sampprobs=sampprobs, effInfo = effInfo, spt=spt,
+                     mu0=mu0Z, weights = weights, offset=offset, sampprobs=sampprobs, effInfo = effInfo, spt=spt,
 					 estprobs = estprobs, fullDataSize = fullDataSize, sampind=sampind, sampgroups=sampgroups, groups=groups, xiInfo=xiInfo,
                      gldrmControl=gldrmControl, thetaControl=thetaControl,
                      betaControl=betaControl, f0Control=f0Control)

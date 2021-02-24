@@ -61,7 +61,7 @@ nullspace <- function(x){ # function to calculate nullspace of matrix x
 #' This function is called by the main \code{gldrm} function.
 #'
 #' @keywords internal
-gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, sampprobs=NULL, effInfo=FALSE, spt= NULL,
+gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, weights=NULL, offset=NULL, sampprobs=NULL, effInfo=FALSE, spt= NULL,
 					 estprobs = FALSE, fullDataSize=NULL, sampind=NULL, sampgroups=NULL, groups=NULL, xiInfo=NULL,
                      gldrmControl=gldrm.control(), thetaControl=theta.control(),
                      betaControl=beta.control(), f0Control=f0.control())
@@ -90,7 +90,11 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     if(is.null(spt)){
     spt <- sort(unique(y))}  # observed support
     ySptIndex <- match(y, spt)# index of each y value within support
-    sptFreq <- table(factor(ySptIndex, levels = 1:length(spt)))
+    if(isTRUE(weights==1)){
+      sptFreq <- table(factor(ySptIndex, levels = 1:length(spt)))
+    } else{
+    sptFreq <- aggregate(weights ~ factor(ySptIndex, levels = 1:length(spt)), FUN = sum)$weights #weighted frequency counts
+    }
     attributes(sptFreq) <- NULL
 
     ## Check sampprobs
@@ -133,7 +137,13 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     ## Initialize f0
     if (is.null(f0Start)) {
 		if (!is.null(sampprobs)){
-			f0 <- sptFreq / n
+			
+		  if( isTRUE(weights==1) ){
+		  f0 <- sptFreq / n} else{
+		    f0 <- sptFreq / sum(weights)
+		  }
+		  
+			
 			#f0 <- ( (sptFreq / n) / sampprobs.for.f0start ) # divide by sampling probs when doing ODS
 			#f0 <- f0 / sum(f0) # renormalize
 			if (is.null(mu0)) {
@@ -141,11 +151,14 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 
 		}
 		else {
-        f0 <- sptFreq / n
+		  if( isTRUE(weights==1) ){
+		    f0 <- sptFreq / n }else{
+		      f0 <- sptFreq / sum(weights)
+		    }
     
 		}
         if (mu0 != mean(y))
-            f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1, thetaStart=0,
+            f0 <- getTheta(spt=spt, f0=f0, mu=mu0, weights=weights, sampprobs=NULL, ySptIndex=1, thetaStart=0,
                            thetaControl=thetaControl)$fTilt[, 1]
 						  
 	} else {
@@ -155,7 +168,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         if (any(f0Start <= 0))
             stop("All values in f0Start should be strictly positive.")
         f0 <- f0Start / sum(f0Start)
-        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, sampprobs=NULL, ySptIndex=1, thetaStart=0,
+        f0 <- getTheta(spt=spt, f0=f0, mu=mu0, weights=weights, sampprobs=NULL, ySptIndex=1, thetaStart=0,
                        thetaControl=thetaControl)$fTilt[, 1]
     }
 
@@ -183,12 +196,12 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     if (any(mu<min(spt) | mu>max(spt)))
     stop("Unable to find beta starting values that do not violate convex hull condition.")
     ## Get initial theta and log likelihood
-    th <- getTheta(spt=spt, f0=f0, mu=mu, sampprobs=sampprobs, ySptIndex=ySptIndex,
+    th <- getTheta(spt=spt, f0=f0, mu=mu, weights=weights, sampprobs=sampprobs, ySptIndex=ySptIndex,
                    thetaStart=NULL, thetaControl=thetaControl)
     llik <- th$llik
-	iter.scoresNorm <- list(NA)
-	llik.iter <- list(NA)
-	scoref0.log.T3 <- list(NA)
+	  iter.scoresNorm <- list(NA)
+	  llik.iter <- list(NA)
+	  scoref0.log.T3 <- list(NA)
 	
     conv <- FALSE
     iter <- 0
@@ -203,7 +216,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		
 		
         bb <- getBeta(x=x, y=y, spt=spt, ySptIndex=ySptIndex, f0=f0,
-                      linkinv=linkinv, mu.eta=mu.eta, offset=offset, sampprobs=sampprobs,
+                      weights = weights, linkinv=linkinv, mu.eta=mu.eta, offset=offset, sampprobs=sampprobs,
                       betaStart=beta, thStart=th,
                       thetaControl=thetaControl, betaControl=betaControl)
 		
@@ -212,12 +225,12 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
         mu <- bb$mu
         beta <- bb$beta
 		
-		dmudeta <- bb$dmudeta
+		    dmudeta <- bb$dmudeta
 	
 
         ## update f0 and theta, with fixed beta (mu)
-        ff <- getf0(x=x, y=y, spt=spt, ySptIndex=ySptIndex, sptFreq=sptFreq,
-                    sampprobs=sampprobs, estprobs=estprobs, groups=groups,
+        ff <- getf0(x=x, y=y, spt=spt, ySptIndex=ySptIndex, sptFreq=sptFreq, 
+                    weights=weights, sampprobs=sampprobs, estprobs=estprobs, groups=groups,
 				    effInfo=effInfo, beta=beta, offset=offset, dmudeta=dmudeta, mu=mu, mu0=mu0, f0Start=f0, thStart=th,
                     thetaControl=thetaControl, f0Control=f0Control)
         th <- ff$th
@@ -251,7 +264,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 	
     ## Compute betaHat variance
     if (!is.null(sampprobs)) {
-		q <- (th$bPrime2SW / th$bPrime2)
+		q <- weights*(th$bPrime2SW / th$bPrime2)
         w <- dmudeta^2 / th$bPrime2 * q
         wSqrt <- sqrt(w)
 		#beta.info.check <- matrix(data=0, nrow=ncol(x), ncol=ncol(x))
@@ -264,7 +277,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 			
 		
     } else {
-        w <- dmudeta^2 / th$bPrime2
+        w <- weights*(dmudeta^2 / th$bPrime2)
         wSqrt <- sqrt(w)
     }
     if (any(wSqrt == Inf)) {
@@ -273,7 +286,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
     } else {
         wtdX <- wSqrt * x
         # varbeta <- chol2inv(qr.R(qr(wtdX)))  # not stable
-        # varbeta <- solve(crossprod(wtdX))  # not stable
+        #varbeta <- solve(crossprod(wtdX)) # not stable
         varbeta <- tcrossprod(backsolve(qr.R(qr(wtdX)), diag(ncol(wtdX))))
 		if (effInfo==TRUE){
 			if (estprobs==TRUE){
@@ -409,7 +422,7 @@ gldrmFit <- function(x, y, linkfun, linkinv, mu.eta, mu0=NULL, offset=NULL, samp
 		
 		infotheta.1 <- cbind(infobeta,infocross)
 		infotheta.2 <- cbind(t(infocross),infof0) 	
-		infotheta <- rbind(infotheta.1, infotheta.2)	
+		infotheta <-  rbind(infotheta.1, infotheta.2)	
 		#print(solve(infotheta))
 		
 		length.betas <- length(beta)
